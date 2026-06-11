@@ -1,0 +1,21 @@
+[package]
+name = "muse-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ropey.workspace = true
+unicode-segmentation.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+smallvec.workspace = true
+ulid.workspace = true
+jiff.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true

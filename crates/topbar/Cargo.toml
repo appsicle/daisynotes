@@ -1,0 +1,15 @@
+[package]
+name = "muse-topbar"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+gpui.workspace = true
+muse-core.workspace = true
+muse-theme.workspace = true
+muse-ui.workspace = true
+muse-commands.workspace = true

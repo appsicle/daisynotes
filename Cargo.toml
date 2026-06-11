@@ -1,0 +1,84 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+# UI
+# runtime_shaders: Xcode 26 ships the Metal compiler as a separate component;
+# runtime shader compilation keeps dev builds working everywhere. Release
+# builds can drop this once the Metal toolchain component is installed.
+gpui = { version = "0.2.2", features = ["runtime_shaders"] }
+
+# Text
+ropey = "1.6"
+unicode-segmentation = "1.12"
+
+# Storage
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Errors & logging
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Network (api crate only — never on the UI thread)
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+futures = "0.3"
+
+# Utilities
+jiff = "0.2"
+ulid = { version = "1", features = ["serde"] }
+parking_lot = "0.12"
+smallvec = "1"
+
+# Testing
+proptest = "1"
+
+# Local inference (muse-local only)
+llama-cpp-2 = "0.1.146"
+
+# Internal crates
+muse-core = { path = "crates/core" }
+muse-editor = { path = "crates/editor" }
+muse-agent = { path = "crates/agent" }
+muse-commands = { path = "crates/commands" }
+muse-entries = { path = "crates/entries" }
+muse-topbar = { path = "crates/topbar" }
+muse-api = { path = "crates/api" }
+muse-local = { path = "crates/local" }
+muse-storage = { path = "crates/storage" }
+muse-theme = { path = "crates/theme" }
+muse-ui = { path = "crates/ui" }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+dbg_macro = "warn"
+todo = "warn"
+
+# Our code compiles fast; dependencies (gpui, text shaping) stay fast at runtime.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true
+opt-level = 3

@@ -1,0 +1,17 @@
+[package]
+name = "muse-entries"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+gpui.workspace = true
+muse-core.workspace = true
+muse-storage.workspace = true
+muse-theme.workspace = true
+muse-ui.workspace = true
+muse-commands.workspace = true
+jiff.workspace = true
