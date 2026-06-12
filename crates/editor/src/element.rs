@@ -205,7 +205,7 @@ impl Editor {
             let run = TextRun {
                 len: text.len(),
                 font: date_font(),
-                color: tokens.accent.alpha(0.55),
+                color: tokens.ink_tertiary,
                 background_color: None,
                 underline: None,
                 strikethrough: None,
@@ -566,7 +566,7 @@ impl Editor {
                     if scale <= 0.05 {
                         continue;
                     }
-                    let diameter = 26.0 * scale;
+                    let diameter = 23.0 * scale;
                     let center = snap.to_window((marker_x, marker_y - 4.0));
                     let badge = Bounds::new(
                         point(
@@ -575,27 +575,16 @@ impl Editor {
                         ),
                         size(px(diameter), px(diameter)),
                     );
-                    // Sticker treatment: a small offset shadow first, so the
-                    // badge looks peeled onto the page, then a near-white
-                    // disc with a crisp ink hairline.
-                    let shadow_rect = Bounds::new(
-                        point(badge.origin.x, badge.origin.y + px(2.0)),
-                        badge.size,
-                    );
-                    window.paint_quad(
-                        fill(shadow_rect, tokens.ink.alpha(0.10 * alpha))
-                            .corner_radii(px(diameter / 2.0)),
-                    );
-                    let bg = gpui::white().alpha(alpha);
+                    let bg = tokens.bg.alpha(tokens.bg.a * alpha);
                     window.paint_quad(quad(
                         badge,
                         px(diameter / 2.0),
                         bg,
-                        px(2.0),
-                        tokens.ink.alpha(0.10 * alpha),
+                        px(1.0),
+                        tokens.hairline.alpha(tokens.hairline.a * alpha),
                         BorderStyle::default(),
                     ));
-                    let emoji_size = 13.0 * scale;
+                    let emoji_size = 12.0 * scale;
                     let run = TextRun {
                         len: emoji.len(),
                         font: date_font(),
@@ -793,13 +782,13 @@ fn ease_out_back(t: f32) -> f32 {
     1.0 + C3 * u * u * u + C1 * u * u
 }
 
-/// The typewriter font for the date label — a mono stamp, not a UI label.
+/// The UI font for the date label.
 fn date_font() -> Font {
     Font {
-        family: SharedString::new_static(fonts::FONT_MONO),
+        family: SharedString::new_static(fonts::FONT_UI),
         features: FontFeatures::default(),
         fallbacks: None,
-        weight: FontWeight::NORMAL,
+        weight: FontWeight::MEDIUM,
         style: FontStyle::Normal,
     }
 }

@@ -288,13 +288,7 @@ impl Sidebar {
             .mx(px(ROW_MARGIN_X))
             .px(px(ROW_PAD_X))
             .rounded(px(layout::RADIUS_SM))
-            .when(selected, |el| {
-                // Sticker-ish lift: a faint accent wash plus a crimson
-                // stamp-edge tab on the left.
-                el.bg(tokens.accent.alpha(0.10))
-                    .border_l_2()
-                    .border_color(tokens.accent)
-            })
+            .when(selected, |el| el.bg(tokens.hairline.opacity(0.55)))
             .flex()
             .items_center()
             .gap(px(6.))
@@ -379,7 +373,7 @@ impl Sidebar {
                     .flex_none()
                     .size(px(6.))
                     .rounded_full()
-                    .bg(tokens.accent.alpha(0.75));
+                    .bg(tokens.ink_tertiary);
                 footer = footer.child(
                     dot.with_animation(
                         ("muse-typing-dot", phase as usize),
