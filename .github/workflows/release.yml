@@ -1,15 +1,28 @@
-# Tag-driven releases: push a v* tag (or run scripts/release.sh, which tags
-# for you) and CI builds the app on Apple silicon and attaches Muse.dmg +
-# Muse.zip to the GitHub release. The landing page's download button reads
-# releases/latest/download/Muse.dmg, so releases go live automatically.
+# Releases, two lanes:
+#
+# 1. Every push to main → an automatic PRE-release tagged
+#    v{version}-build.{run} with Muse.dmg/zip attached. Pre-releases never
+#    become `releases/latest`, so the landing page's download button keeps
+#    serving the notarized stable build.
+#
+# 2. A v* tag → a stable release. scripts/release.sh (run locally, where
+#    the Developer ID certificate and notary credentials live) creates the
+#    release with notarized assets BEFORE pushing the tag; CI then sees the
+#    release already exists and leaves it alone. If a tag is pushed bare,
+#    CI creates the release itself with ad-hoc-signed assets as a fallback.
 
 name: release
 on:
   push:
+    branches: ["main"]
     tags: ["v*"]
 
 permissions:
   contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -24,14 +37,28 @@ jobs:
       - name: Package
         run: scripts/package.sh
 
-      - name: Release
+      - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            gh release upload "${GITHUB_REF_NAME}" dist/Muse.dmg dist/Muse.zip --clobber
-          else
-            gh release create "${GITHUB_REF_NAME}" dist/Muse.dmg dist/Muse.zip \
-              --title "Muse ${GITHUB_REF_NAME#v}" \
+          set -euo pipefail
+          VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF_NAME}"
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              echo "release $TAG already exists (created locally, notarized) — not touching its assets"
+              exit 0
+            fi
+            gh release create "$TAG" dist/Muse.dmg dist/Muse.zip \
+              --title "Muse ${TAG#v}" \
               --generate-notes
+          else
+            TAG="v${VERSION}-build.${GITHUB_RUN_NUMBER}"
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            gh release create "$TAG" dist/Muse.dmg dist/Muse.zip \
+              --prerelease \
+              --target "$GITHUB_SHA" \
+              --title "Muse ${VERSION} (build ${GITHUB_RUN_NUMBER}, ${SHORT_SHA})" \
+              --notes "Automatic build of \`${SHORT_SHA}\` from \`main\`. Ad-hoc signed — for testing; grab the latest stable release for the notarized app."
           fi
