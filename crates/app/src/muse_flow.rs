@@ -83,7 +83,9 @@ impl Workspace {
     /// The 500ms poll: if the current entry's engine says go (and the gate
     /// is open), mark it considered and run one consideration.
     pub(crate) fn agent_tick(&mut self, cx: &mut Context<Self>) {
-        if self.considering || !self.gate() {
+        // Never consider while the settings pane is up — no notes blooming
+        // behind a modal.
+        if self.considering || self.settings_open || !self.gate() {
             return;
         }
         let now = now_ms();
@@ -353,11 +355,15 @@ impl Workspace {
         }
     }
 
-    /// Set the orb, invalidating any pending state timers.
+    /// Set the orb, invalidating any pending state timers. Reading/Thinking
+    /// also light the sidebar's typing dots — a friend typing back.
     fn set_orb(&mut self, state: OrbState, cx: &mut Context<Self>) {
         self.orb_generation = self.orb_generation.wrapping_add(1);
         self.topbar
             .update(cx, |topbar, cx| topbar.set_orb(state, cx));
+        let thinking = matches!(state, OrbState::Reading | OrbState::Thinking);
+        self.sidebar
+            .update(cx, |sidebar, cx| sidebar.set_thinking(thinking, cx));
     }
 
     /// After a note blooms, let the orb rest again once the moment passes.

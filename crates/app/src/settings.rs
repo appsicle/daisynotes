@@ -14,10 +14,11 @@ use muse_agent::Chattiness;
 use muse_local::{DownloadState, LocalModel};
 use muse_commands as cmd;
 use muse_theme::{
-    ActiveTheme as _, Appearance, ThemePair, derive_tokens, hex_from_hsla, hsla_from_hex, layout,
+    ActiveTheme as _, Appearance, ThemePair, derive_tokens, fonts, hex_from_hsla, hsla_from_hex,
+    layout,
 };
 use muse_topbar::OrbState;
-use muse_ui::{IconName, TextField, divider, icon, icon_button, soft_shadow, text_button};
+use muse_ui::{IconName, TextField, icon, icon_button, soft_shadow, text_button};
 
 use crate::workspace::Workspace;
 
@@ -48,6 +49,7 @@ impl Workspace {
 
     fn open_settings(&mut self, cx: &mut Context<Self>) {
         self.settings_open = true;
+        self.theme_menu_open = false;
         self.refill_custom_fields(cx);
         self.api_field.update(cx, |field, cx| {
             field.set_value("", cx);
@@ -63,6 +65,7 @@ impl Workspace {
     /// Close the pane and hand focus back to the page.
     pub(crate) fn close_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.settings_open = false;
+        self.theme_menu_open = false;
         // Retire the download poll; the crate keeps downloading on its own.
         self.download_poll_generation = self.download_poll_generation.wrapping_add(1);
         window.focus(&self.editor.focus_handle(cx));
@@ -239,7 +242,7 @@ impl Workspace {
             return None;
         }
         let tokens = cx.theme().tokens;
-        let max_h = f32::from(window.viewport_size().height) * 0.8;
+        let max_h = f32::from(window.viewport_size().height) * 0.84;
 
         let card = div()
             .occlude()
@@ -250,26 +253,27 @@ impl Workspace {
             .border_color(tokens.hairline)
             .rounded(px(layout::RADIUS_LG))
             .shadow(soft_shadow(&tokens))
+            .overflow_hidden()
             .child(
                 div()
                     .id("settings-scroll")
                     .overflow_y_scroll()
                     .max_h(px(max_h))
-                    .p(px(20.))
+                    .px(px(28.))
+                    .pt(px(24.))
+                    .pb(px(28.))
                     .flex()
                     .flex_col()
-                    .gap(px(16.))
                     .child(self.render_settings_title(cx))
+                    .child(section_rule("Appearance", cx))
                     .child(self.render_appearance_section(cx))
-                    .child(divider())
+                    .child(section_rule("Theme", cx))
                     .child(self.render_preset_section(cx))
-                    .child(divider())
                     .child(self.render_custom_section(cx))
-                    .child(divider())
+                    .child(section_rule("Muse", cx))
                     .child(self.render_muse_section(cx))
-                    .child(divider())
-                    .child(self.render_local_section(cx))
-                    .child(divider())
+                    .child(self.render_local_rows(cx))
+                    .child(section_rule("API key", cx))
                     .child(self.render_api_section(cx)),
             );
 
@@ -281,7 +285,7 @@ impl Workspace {
                 .flex()
                 .items_center()
                 .justify_center()
-                .bg(tokens.bg.alpha(0.35))
+                .bg(tokens.bg.alpha(0.45))
                 .on_click(cx.listener(|this, _: &ClickEvent, window, cx| {
                     this.close_settings(window, cx);
                 }))
@@ -290,15 +294,19 @@ impl Workspace {
         )
     }
 
+    /// The masthead: "Settings" set in the serif display voice — the one
+    /// editorial flourish — with the close affordance opposite.
     fn render_settings_title(&self, cx: &mut Context<Self>) -> AnyElement {
         let tokens = cx.theme().tokens;
         div()
             .flex()
             .items_center()
             .justify_between()
+            .pb(px(6.))
             .child(
                 div()
-                    .text_size(px(layout::UI_TITLE))
+                    .font_family(fonts::FONT_SERIF)
+                    .text_size(px(24.))
                     .text_color(tokens.ink)
                     .child("Settings"),
             )
@@ -312,92 +320,161 @@ impl Workspace {
 
     fn render_appearance_section(&self, cx: &mut Context<Self>) -> AnyElement {
         let appearance = cx.theme().appearance;
-        section("APPEARANCE", cx)
-            .child(
-                div()
-                    .flex()
-                    .gap(px(4.))
-                    .child(self.segment(
-                        "appearance-light",
-                        "Light",
-                        appearance == Appearance::Paper,
-                        cx.listener(|this, _: &ClickEvent, _window, cx| {
-                            if cx.theme().appearance != Appearance::Paper {
-                                this.set_appearance(Appearance::Paper, cx);
-                            }
-                        }),
-                        cx,
-                    ))
-                    .child(self.segment(
-                        "appearance-dark",
-                        "Dark",
-                        appearance == Appearance::Dusk,
-                        cx.listener(|this, _: &ClickEvent, _window, cx| {
-                            if cx.theme().appearance != Appearance::Dusk {
-                                this.set_appearance(Appearance::Dusk, cx);
-                            }
-                        }),
-                        cx,
-                    )),
-            )
-            .into_any_element()
+        let light = self.segment(
+            "appearance-light",
+            "Paper",
+            appearance == Appearance::Paper,
+            cx.listener(|this, _: &ClickEvent, _window, cx| {
+                if cx.theme().appearance != Appearance::Paper {
+                    this.set_appearance(Appearance::Paper, cx);
+                }
+            }),
+            cx,
+        );
+        let dark = self.segment(
+            "appearance-dark",
+            "Dusk",
+            appearance == Appearance::Dusk,
+            cx.listener(|this, _: &ClickEvent, _window, cx| {
+                if cx.theme().appearance != Appearance::Dusk {
+                    this.set_appearance(Appearance::Dusk, cx);
+                }
+            }),
+            cx,
+        );
+        setting_row(
+            "Mode",
+            "Which side of the pair you write on.",
+            segmented(light, dark, None, cx),
+            cx,
+        )
     }
 
+    /// The theme picker: a dropdown naming the current pair; the menu
+    /// blooms over the content below (deferred — nothing shifts).
     fn render_preset_section(&self, cx: &mut Context<Self>) -> AnyElement {
         let tokens = cx.theme().tokens;
         let appearance = cx.theme().appearance;
-        let swatches = muse_theme::presets()
+        let presets = muse_theme::presets();
+        let current_name = presets
             .iter()
-            .enumerate()
-            .map(|(index, preset)| {
-                let shown = if appearance == Appearance::Paper {
-                    preset.light
-                } else {
-                    preset.dark
-                };
-                let current = preset.pair() == self.theme_pair;
+            .find(|preset| preset.pair() == self.theme_pair)
+            .map_or("Custom", |preset| preset.name);
+
+        let button = div()
+            .id("theme-dropdown")
+            .flex()
+            .items_center()
+            .justify_between()
+            .w(px(190.))
+            .px(px(10.))
+            .py(px(5.))
+            .rounded(px(layout::RADIUS_SM))
+            .border_1()
+            .border_color(tokens.hairline)
+            .cursor_pointer()
+            .hover(move |style| style.bg(tokens.hairline.opacity(0.4)))
+            .on_click(cx.listener(|this, _: &ClickEvent, _window, cx| {
+                this.theme_menu_open = !this.theme_menu_open;
+                cx.notify();
+            }))
+            .child(
                 div()
-                    .id(SharedString::from(format!("preset-{index}")))
+                    .flex()
+                    .items_center()
+                    .gap(px(8.))
+                    .child(swatch(self.theme_pair.tokens_for(appearance)))
+                    .child(
+                        div()
+                            .text_size(px(layout::UI_TEXT))
+                            .text_color(tokens.ink)
+                            .child(SharedString::from(current_name.to_string())),
+                    ),
+            )
+            .child(
+                div()
+                    .text_size(px(9.))
+                    .text_color(tokens.ink_tertiary)
+                    .child("\u{25BC}"),
+            );
+
+        let menu = self.theme_menu_open.then(|| {
+            let items = presets
+                .iter()
+                .enumerate()
+                .map(|(index, preset)| {
+                    let shown = preset.pair().tokens_for(appearance);
+                    let active = preset.pair() == self.theme_pair;
+                    div()
+                        .id(SharedString::from(format!("preset-{index}")))
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .px(px(10.))
+                        .py(px(6.))
+                        .cursor_pointer()
+                        .hover(move |style| style.bg(tokens.hairline.opacity(0.4)))
+                        .on_click(cx.listener(move |this, _: &ClickEvent, _window, cx| {
+                            this.theme_menu_open = false;
+                            this.apply_preset(index, cx);
+                        }))
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap(px(8.))
+                                .child(swatch(shown))
+                                .child(
+                                    div()
+                                        .text_size(px(layout::UI_TEXT))
+                                        .text_color(tokens.ink)
+                                        .child(SharedString::from(preset.name)),
+                                ),
+                        )
+                        .when(active, |this| {
+                            this.child(
+                                icon(IconName::Check)
+                                    .size(px(12.))
+                                    .color(tokens.accent),
+                            )
+                        })
+                        .into_any_element()
+                })
+                .collect::<Vec<_>>();
+            gpui::deferred(
+                div()
+                    .occlude()
+                    .absolute()
+                    .top(px(34.))
+                    .left_0()
+                    .w(px(190.))
+                    .py(px(4.))
+                    .bg(tokens.surface_lifted)
+                    .border_1()
+                    .border_color(tokens.hairline)
+                    .rounded(px(layout::RADIUS_MD))
+                    .shadow(soft_shadow(&tokens))
                     .flex()
                     .flex_col()
-                    .items_center()
-                    .gap(px(6.))
-                    .cursor_pointer()
-                    .on_click(cx.listener(move |this, _: &ClickEvent, _window, cx| {
-                        this.apply_preset(index, cx);
-                    }))
-                    .child(
-                        div()
-                            .size(px(44.))
-                            .rounded_full()
-                            .bg(shown.bg)
-                            .border_2()
-                            .border_color(if current {
-                                shown.accent
-                            } else {
-                                shown.accent.alpha(0.45)
-                            }),
-                    )
-                    .child(
-                        div()
-                            .text_size(px(layout::UI_SMALL))
-                            .text_color(if current {
-                                tokens.ink
-                            } else {
-                                tokens.ink_tertiary
-                            })
-                            .child(SharedString::from(preset.name)),
-                    )
-                    .into_any_element()
-            })
-            .collect::<Vec<_>>();
+                    .children(items),
+            )
+            .with_priority(3)
+        });
 
-        section("THEME", cx)
-            .child(div().flex().justify_between().children(swatches))
-            .into_any_element()
+        setting_row(
+            "Palette",
+            "A light and dark pair, switched by Mode.",
+            div()
+                .relative()
+                .child(button)
+                .children(menu)
+                .into_any_element(),
+            cx,
+        )
     }
 
     fn render_custom_section(&self, cx: &mut Context<Self>) -> AnyElement {
+        let tokens = cx.theme().tokens;
         let column = |title: &'static str, fields: [&Entity<TextField>; 3], cx: &mut Context<Self>| {
             let tokens = cx.theme().tokens;
             let labeled = |label: &'static str, field: &Entity<TextField>| {
@@ -420,7 +497,7 @@ impl Workspace {
                 .gap(px(8.))
                 .child(
                     div()
-                        .text_size(px(layout::UI_SMALL))
+                        .text_size(px(layout::UI_HEADER))
                         .text_color(tokens.ink_secondary)
                         .child(title),
                 )
@@ -429,25 +506,36 @@ impl Workspace {
                 .child(labeled("Foreground", fields[2]))
         };
         let [la, lb, lf, da, db, df] = &self.custom_fields;
-        let light = column("Light", [la, lb, lf], cx);
-        let dark = column("Dark", [da, db, df], cx);
+        let light = column("PAPER", [la, lb, lf], cx);
+        let dark = column("DUSK", [da, db, df], cx);
 
-        section("CUSTOM", cx)
-            .child(div().flex().gap(px(16.)).child(light).child(dark))
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(10.))
+            .pt(px(16.))
             .child(
-                div().flex().justify_end().child(
-                    text_button("custom-apply", "Apply").on_click(cx.listener(
+                div()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .child(
+                        div()
+                            .text_size(px(layout::UI_TEXT))
+                            .text_color(tokens.ink)
+                            .child("Make it yours"),
+                    )
+                    .child(text_button("custom-apply", "Apply").on_click(cx.listener(
                         |this, _: &ClickEvent, _window, cx| {
                             this.apply_custom(cx);
                         },
-                    )),
-                ),
+                    ))),
             )
+            .child(div().flex().gap(px(16.)).child(light).child(dark))
             .into_any_element()
     }
 
     fn render_muse_section(&self, cx: &mut Context<Self>) -> AnyElement {
-        let tokens = cx.theme().tokens;
         let seg = |this: &Self,
                    id: &'static str,
                    label: &'static str,
@@ -472,33 +560,20 @@ impl Workspace {
             cx,
         );
         let chatty = seg(self, "muse-chatty", "Chatty", Chattiness::Chatty, cx);
-
-        section("MUSE", cx)
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .child(
-                        div()
-                            .text_size(px(layout::UI_BODY))
-                            .text_color(tokens.ink)
-                            .child("Personality"),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .gap(px(4.))
-                            .child(quiet)
-                            .child(occasional)
-                            .child(chatty),
-                    ),
-            )
-            .into_any_element()
+        setting_row(
+            "Personality",
+            "How often Muse speaks up in the margin.",
+            segmented(quiet, occasional, Some(chatty), cx),
+            cx,
+        )
     }
 
-    fn render_local_section(&self, cx: &mut Context<Self>) -> AnyElement {
-        section("ON-DEVICE", cx)
+    fn render_local_rows(&self, cx: &mut Context<Self>) -> AnyElement {
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(12.))
+            .pt(px(16.))
             .child(self.render_model_row(LocalModel::Light, cx))
             .child(self.render_model_row(LocalModel::Standard, cx))
             .into_any_element()
@@ -560,7 +635,7 @@ impl Workspace {
                     .gap(px(8.))
                     .child(
                         div()
-                            .text_size(px(layout::UI_BODY))
+                            .text_size(px(layout::UI_TEXT))
                             .text_color(tokens.ink)
                             .child(model.display_name()),
                     )
@@ -643,7 +718,17 @@ impl Workspace {
 
     fn render_api_section(&self, cx: &mut Context<Self>) -> AnyElement {
         let tokens = cx.theme().tokens;
-        section("API KEY", cx)
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(8.))
+            .pt(px(14.))
+            .child(
+                div()
+                    .text_size(px(layout::UI_SMALL))
+                    .text_color(tokens.ink_tertiary)
+                    .child("With a Claude key, Muse thinks in the cloud; without one, on-device."),
+            )
             .child(
                 div()
                     .flex()
@@ -675,18 +760,22 @@ impl Workspace {
         div()
             .id(id)
             .px(px(10.))
-            .py(px(4.))
-            .rounded(px(layout::RADIUS_SM))
-            .text_size(px(layout::UI_TEXT))
+            .py(px(3.))
+            .rounded(px(layout::RADIUS_SM - 2.0))
+            .text_size(px(layout::UI_SMALL))
             .cursor_pointer()
             .text_color(if selected {
                 tokens.ink
             } else {
                 tokens.ink_secondary
             })
-            .when(selected, |this| this.bg(tokens.hairline.opacity(0.8)))
+            .when(selected, |this| {
+                this.bg(tokens.surface_lifted)
+                    .border_1()
+                    .border_color(tokens.hairline)
+            })
             .when(!selected, |this| {
-                this.hover(move |style| style.bg(tokens.hairline.opacity(0.5)))
+                this.hover(move |style| style.bg(tokens.hairline.opacity(0.4)))
             })
             .on_click(on_click)
             .child(label)
@@ -694,14 +783,94 @@ impl Workspace {
     }
 }
 
-/// A section shell: an UPPERCASE header at the `UI_HEADER` tier (tertiary
-/// ink), then content.
-fn section(label: &'static str, cx: &mut Context<Workspace>) -> gpui::Div {
+/// A small two-tone disk previewing a palette: background disk, accent core.
+fn swatch(tokens: muse_theme::Tokens) -> gpui::Div {
+    div()
+        .flex_none()
+        .size(px(16.))
+        .rounded_full()
+        .bg(tokens.bg)
+        .border_1()
+        .border_color(tokens.ink.alpha(0.25))
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(div().size(px(7.)).rounded_full().bg(tokens.accent))
+}
+
+/// A grouped segmented control shell: members sit inside one hairline track.
+fn segmented(
+    first: AnyElement,
+    second: AnyElement,
+    third: Option<AnyElement>,
+    cx: &mut Context<Workspace>,
+) -> AnyElement {
     let tokens = cx.theme().tokens;
-    div().flex().flex_col().gap(px(10.)).child(
-        div()
-            .text_size(px(layout::UI_HEADER))
-            .text_color(tokens.ink_tertiary)
-            .child(label),
-    )
+    div()
+        .flex()
+        .items_center()
+        .gap(px(2.))
+        .p(px(2.))
+        .rounded(px(layout::RADIUS_SM))
+        .bg(tokens.hairline.opacity(0.35))
+        .child(first)
+        .child(second)
+        .children(third)
+        .into_any_element()
+}
+
+/// One settings row: label + one-line description on the left, the control
+/// right-aligned. The editorial grid every section shares.
+fn setting_row(
+    label: &'static str,
+    description: &'static str,
+    control: AnyElement,
+    cx: &mut Context<Workspace>,
+) -> AnyElement {
+    let tokens = cx.theme().tokens;
+    div()
+        .flex()
+        .items_center()
+        .justify_between()
+        .gap(px(16.))
+        .pt(px(14.))
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(2.))
+                .child(
+                    div()
+                        .text_size(px(layout::UI_TEXT))
+                        .text_color(tokens.ink)
+                        .child(label),
+                )
+                .child(
+                    div()
+                        .text_size(px(layout::UI_SMALL))
+                        .text_color(tokens.ink_tertiary)
+                        .child(description),
+                ),
+        )
+        .child(control)
+        .into_any_element()
+}
+
+/// An editorial section rule: the uppercase kicker, then a hairline running
+/// to the card's edge — the magazine section break.
+fn section_rule(label: &'static str, cx: &mut Context<Workspace>) -> gpui::Div {
+    let tokens = cx.theme().tokens;
+    div()
+        .flex()
+        .items_center()
+        .gap(px(10.))
+        .pt(px(22.))
+        .child(
+            div()
+                .flex_none()
+                .text_size(px(layout::UI_HEADER))
+                .text_color(tokens.ink_tertiary)
+                .child(SharedString::from(label.to_uppercase())),
+        )
+        .child(div().flex_1().h(px(1.)).bg(tokens.hairline))
 }

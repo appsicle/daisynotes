@@ -27,11 +27,13 @@ pub enum IconName {
     Trash,
     /// Undo (soft-delete toast).
     Undo,
+    /// Settings gear.
+    Settings,
 }
 
 impl IconName {
     /// All icons, for exhaustive tests and galleries.
-    pub const ALL: [IconName; 10] = [
+    pub const ALL: [IconName; 11] = [
         IconName::PanelLeft,
         IconName::Plus,
         IconName::Sun,
@@ -42,6 +44,7 @@ impl IconName {
         IconName::CloudOff,
         IconName::Trash,
         IconName::Undo,
+        IconName::Settings,
     ];
 
     /// The asset path served by [`crate::assets::MuseAssets`].
@@ -58,6 +61,7 @@ impl IconName {
             IconName::CloudOff => "icons/cloud-off.svg",
             IconName::Trash => "icons/trash-2.svg",
             IconName::Undo => "icons/undo-2.svg",
+            IconName::Settings => "icons/settings.svg",
         })
     }
 }

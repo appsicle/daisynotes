@@ -99,6 +99,10 @@ fn parse_note(item: &Value) -> Option<NoteDraft> {
         tracing::warn!("note dropped: empty body");
         return None;
     }
+    if looks_degenerate(body) {
+        tracing::warn!("note dropped: degenerate body");
+        return None;
+    }
     let kind = item
         .get("kind")
         .and_then(Value::as_str)
@@ -111,6 +115,32 @@ fn parse_note(item: &Value) -> Option<NoteDraft> {
         body: body.to_string(),
         emoji,
     })
+}
+
+/// True when `text` collapses into a runaway loop: any 1–4 char pattern
+/// repeated six or more times in a row (the "hjhjhj…" failure mode of small
+/// models filling a grammar-bounded string).
+fn looks_degenerate(text: &str) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    for width in 1..=4usize {
+        if chars.len() < width * 6 {
+            continue;
+        }
+        let mut run = 1usize;
+        let mut start = width;
+        while start + width <= chars.len() {
+            if chars[start..start + width] == chars[start - width..start] {
+                run += 1;
+                if run >= 6 {
+                    return true;
+                }
+            } else {
+                run = 1;
+            }
+            start += width;
+        }
+    }
+    false
 }
 
 fn string_field(item: &Value, key: &str) -> String {
@@ -233,6 +263,24 @@ mod tests {
         };
         assert_eq!(drafts.len(), 1);
         assert_eq!(drafts[0].quote, ok_quote);
+    }
+
+    #[test]
+    fn degenerate_bodies_rejected() {
+        assert!(looks_degenerate("hjhjhjhjhjhjhjhjhjhj"));
+        assert!(looks_degenerate("aaaaaaaa"));
+        assert!(looks_degenerate("abcabcabcabcabcabcabc"));
+        assert!(!looks_degenerate("this might just be me, but the harbor line sings"));
+        assert!(!looks_degenerate("what made it loud that night?"));
+        assert!(!looks_degenerate(""));
+        let input = json!({
+            "register": "journal",
+            "notes": [note("real quote", "insight", "hjhjhjhjhjhjhjhjhjhjhjhj")]
+        });
+        assert!(matches!(
+            parse_decision(&reply("leave_notes", input)),
+            AgentDecision::Pass { .. }
+        ));
     }
 
     #[test]

@@ -9,26 +9,25 @@
 
 mod age;
 
+use std::time::Duration;
+
 use gpui::{
     Animation, AnimationExt as _, AnyElement, ClickEvent, Context, EventEmitter, MouseButton,
     SharedString, Window, div, prelude::*, px, svg,
 };
 use muse_storage::EntrySummary;
 use muse_theme::{ActiveTheme as _, layout, motion};
-use muse_ui::{IconName, icon, icon_button};
+use muse_ui::{IconName, icon_button};
 
 /// Top padding above the header row, clearing the inset traffic lights.
 const TOP_PAD: f32 = 46.0;
 /// Fixed height of one entry row — generous, single line (sized for the
 /// `UI_BODY` title; identical in every state, nothing ever shifts).
-const ROW_H: f32 = 42.0;
+const ROW_H: f32 = 30.0;
 /// Horizontal margin around rows, and half the edge padding of headers.
 const ROW_MARGIN_X: f32 = 8.0;
 /// Horizontal padding inside a row.
 const ROW_PAD_X: f32 = 10.0;
-/// Edge padding for the header and footer — aligns with the text inside
-/// rows (row margin + row padding).
-const EDGE_PAD: f32 = ROW_MARGIN_X + ROW_PAD_X;
 /// Width of every row's fixed right slot. It shows the age label at rest
 /// and the trash button on hover, so neither ever reflows the title.
 const RIGHT_SLOT: f32 = 32.0;
@@ -101,6 +100,8 @@ pub struct Sidebar {
     selected: Option<String>,
     hovered: Option<SharedString>,
     sync: SyncGlyph,
+    /// Muse is reading/considering; the footer shows the typing dots.
+    thinking: bool,
 }
 
 impl EventEmitter<SidebarEvent> for Sidebar {}
@@ -113,6 +114,7 @@ impl Sidebar {
             selected: None,
             hovered: None,
             sync: SyncGlyph::default(),
+            thinking: false,
         }
     }
 
@@ -138,7 +140,8 @@ impl Sidebar {
         }
     }
 
-    /// Update the passive sync glyph in the footer.
+    /// Update the passive sync glyph state (no longer rendered; saves are
+    /// silent — kept so the app's wiring stays stable).
     pub fn set_sync_glyph(&mut self, state: SyncGlyph, cx: &mut Context<Self>) {
         if self.sync != state {
             self.sync = state;
@@ -146,39 +149,52 @@ impl Sidebar {
         }
     }
 
+    /// Whether Muse is currently reading or considering; drives the
+    /// iMessage-style typing dots in the footer.
+    pub fn set_thinking(&mut self, thinking: bool, cx: &mut Context<Self>) {
+        if self.thinking != thinking {
+            self.thinking = thinking;
+            cx.notify();
+        }
+    }
+
+    /// The header IS the titlebar strip: traffic lights live in the left
+    /// 76px, the new-entry and toggle buttons sit right — one row, nothing
+    /// below it. Double-click on empty chrome zooms, like the topbar.
     fn render_header(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let tokens = cx.theme().tokens;
+        let _tokens = cx.theme().tokens;
         div()
             .flex_none()
-            .h(px(28.))
-            .pl(px(EDGE_PAD))
+            .h(px(TOP_PAD))
+            .pl(px(76.))
             .pr(px(ROW_MARGIN_X))
             .flex()
             .items_center()
-            .justify_between()
-            // .child(
-            //     div()
-            //         .text_size(px(layout::UI_HEADER))
-            //         .text_color(tokens.ink_tertiary)
-            //         .child("ENTRIES"),
-            // )
+            .justify_end()
+            .on_mouse_down(MouseButton::Left, |event, window, _| {
+                if event.click_count == 2 {
+                    window.titlebar_double_click();
+                }
+            })
             .child(
                 div()
                     .flex()
                     .items_center()
                     .gap(px(2.))
                     .child(
-                        icon_button("sidebar-new-entry", IconName::Plus).on_click(
-                            cx.listener(|_, _: &ClickEvent, _, cx| cx.emit(SidebarEvent::NewEntry)),
-                        ),
+                        icon_button("sidebar-new-entry", IconName::Plus)
+                            .icon_size(px(14.))
+                            .on_click(cx.listener(|_, _: &ClickEvent, _, cx| {
+                                cx.emit(SidebarEvent::NewEntry)
+                            })),
                     )
                     .child(
-                        icon_button("sidebar-toggle", IconName::PanelLeft).on_click(
-                            |_, window, cx| {
+                        icon_button("sidebar-toggle", IconName::PanelLeft)
+                            .icon_size(px(14.))
+                            .on_click(|_, window, cx| {
                                 window
                                     .dispatch_action(Box::new(muse_commands::ToggleSidebar), cx);
-                            },
-                        ),
+                            }),
                     ),
             )
     }
@@ -247,7 +263,7 @@ impl Sidebar {
                 self.render_trash(row, cx)
             } else {
                 div()
-                    .text_size(px(layout::UI_SMALL))
+                    .text_size(px(layout::UI_HEADER))
                     .text_color(tokens.ink_tertiary)
                     .child(row.age.clone())
                     .into_any_element()
@@ -256,7 +272,7 @@ impl Sidebar {
         let title = div()
             .flex_1()
             .min_w(px(0.))
-            .text_size(px(layout::UI_BODY))
+            .text_size(px(layout::UI_TEXT))
             .text_color(if row.untitled {
                 tokens.ink_tertiary
             } else {
@@ -271,8 +287,8 @@ impl Sidebar {
             .h(px(ROW_H))
             .mx(px(ROW_MARGIN_X))
             .px(px(ROW_PAD_X))
-            .rounded(px(layout::RADIUS_MD))
-            .when(selected, |el| el.bg(tokens.surface_lifted))
+            .rounded(px(layout::RADIUS_SM))
+            .when(selected, |el| el.bg(tokens.hairline.opacity(0.55)))
             .flex()
             .items_center()
             .gap(px(6.))
@@ -297,7 +313,7 @@ impl Sidebar {
         if hovered && !selected {
             // Remounted at hover start, fading the tint in over FADE; the
             // tint vanishes instantly on leave.
-            let hover_bg = tokens.hairline.opacity(0.6);
+            let hover_bg = tokens.hairline.opacity(0.35);
             row_el
                 .with_animation(
                     row.hover_anim_id.clone(),
@@ -310,20 +326,70 @@ impl Sidebar {
         }
     }
 
+    /// The footer: a quiet Settings button on the left, and three bouncing
+    /// dots while Muse is reading or thinking — like a friend typing.
     fn render_footer(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let tokens = cx.theme().tokens;
-        let glyph = match self.sync {
-            SyncGlyph::Local => None,
-            SyncGlyph::Saving => Some(IconName::Cloud),
-            SyncGlyph::Saved => Some(IconName::Check),
-        };
-        div()
+        let hover_bg = tokens.hairline.opacity(0.5);
+        let mut footer = div()
             .flex_none()
-            .h(px(32.))
-            .px(px(EDGE_PAD))
+            .h(px(36.))
+            .px(px(ROW_MARGIN_X))
             .flex()
             .items_center()
-            .children(glyph.map(|name| icon(name).size(px(12.)).color(tokens.ink_tertiary)))
+            .gap(px(3.))
+            .child(
+                div()
+                    .id("sidebar-settings")
+                    .flex()
+                    .items_center()
+                    .gap(px(6.))
+                    .px(px(ROW_PAD_X))
+                    .py(px(4.))
+                    .rounded(px(layout::RADIUS_SM))
+                    .cursor_pointer()
+                    .hover(move |style| style.bg(hover_bg))
+                    .on_click(|_, window, cx| {
+                        window.dispatch_action(Box::new(muse_commands::OpenSettings), cx);
+                    })
+                    .child(
+                        svg()
+                            .flex_none()
+                            .size(px(13.))
+                            .path(IconName::Settings.path())
+                            .text_color(tokens.ink_secondary),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(layout::UI_SMALL))
+                            .text_color(tokens.ink_secondary)
+                            .child("Settings"),
+                    ),
+            )
+            .child(div().flex_1());
+        if self.thinking {
+            for phase in 0..3u64 {
+                let dot = div()
+                    .flex_none()
+                    .size(px(6.))
+                    .rounded_full()
+                    .bg(tokens.ink_tertiary);
+                footer = footer.child(
+                    dot.with_animation(
+                        ("muse-typing-dot", phase as usize),
+                        Animation::new(Duration::from_millis(900)).repeat(),
+                        move |el, t| {
+                            // Staggered bounce: each dot leads the next by a
+                            // sixth of the cycle, rising 4px at its peak.
+                            let local = (t + phase as f32 / 6.0).fract();
+                            let lift = (local * std::f32::consts::PI).sin().max(0.0) * 4.0;
+                            el.mb(px(lift)).opacity(0.45 + 0.55 * (lift / 4.0))
+                        },
+                    ),
+                );
+            }
+        }
+        footer
     }
 }
 
@@ -352,16 +418,6 @@ impl Render for Sidebar {
             .bg(tokens.bg)
             .border_r_1()
             .border_color(tokens.hairline)
-            // The titlebar strip over the sidebar: double-click performs the
-            // native titlebar action, matching the topbar's empty chrome.
-            .child(div().flex_none().h(px(TOP_PAD)).on_mouse_down(
-                MouseButton::Left,
-                |event, window, _| {
-                    if event.click_count == 2 {
-                        window.titlebar_double_click();
-                    }
-                },
-            ))
             .child(self.render_header(cx))
             .child(list)
             .child(self.render_footer(cx))

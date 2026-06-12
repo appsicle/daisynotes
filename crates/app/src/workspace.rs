@@ -18,14 +18,14 @@ use gpui::{
 use muse_agent::{Chattiness, NoteRecord, TriggerEngine};
 use muse_api::ApiHandle;
 use muse_commands as cmd;
-use muse_core::{Document, FontFamily};
+use muse_core::Document;
 use muse_editor::{Editor, EditorEvent};
 use muse_entries::{Sidebar, SidebarEvent};
 use muse_storage::Store;
 use muse_theme::{
     ActiveTheme as _, Appearance, FONT_UI, Theme, ThemePair, Tokens, layout, lerp_tokens, motion,
 };
-use muse_topbar::{Topbar, TopbarEvent};
+use muse_topbar::Topbar;
 use muse_ui::{TextField, pill, text_button};
 use ulid::Ulid;
 
@@ -39,6 +39,10 @@ const TOAST_LIFE: Duration = Duration::from_secs(5);
 const CROSSFADE_FRAME: Duration = Duration::from_millis(8);
 
 /// The sidebar slot's in-flight width animation.
+/// Sidebar drag-resize bounds.
+const MIN_SIDEBAR_W: f32 = 200.0;
+const MAX_SIDEBAR_W: f32 = 380.0;
+
 struct Slide {
     from: f32,
     to: f32,
@@ -73,6 +77,10 @@ pub struct Workspace {
 
     entries_open: bool,
     slide: Option<Slide>,
+    /// User-chosen sidebar width (drag the divider), persisted.
+    sidebar_w: f32,
+    /// A divider drag is in progress.
+    resizing_sidebar: bool,
     theme_generation: u64,
     /// The light/dark palettes the app currently dresses in.
     pub(crate) theme_pair: ThemePair,
@@ -83,6 +91,8 @@ pub struct Workspace {
 
     // ── Settings pane ──────────────────────────────────────────────────────
     pub(crate) settings_open: bool,
+    /// The theme dropdown in settings is expanded.
+    pub(crate) theme_menu_open: bool,
     /// Custom-theme hex fields: light accent/bg/fg, then dark accent/bg/fg.
     pub(crate) custom_fields: [Entity<TextField>; 6],
     pub(crate) api_field: Entity<TextField>,
@@ -127,7 +137,6 @@ impl Workspace {
         let mut subscriptions = vec![
             cx.subscribe_in(&editor, window, Self::on_editor_event),
             cx.subscribe_in(&sidebar, window, Self::on_sidebar_event),
-            cx.subscribe_in(&topbar, window, Self::on_topbar_event),
             cx.observe_window_activation(window, |this, window, cx| {
                 if !window.is_window_active() {
                     this.flush(cx);
@@ -181,12 +190,15 @@ impl Workspace {
             glyph_generation: 0,
             entries_open: true,
             slide: None,
+            sidebar_w: layout::SIDEBAR_W,
+            resizing_sidebar: false,
             theme_generation: 0,
             theme_pair: boot.pair,
             muted: boot.muted,
             key_missing,
             chattiness: boot.chattiness,
             settings_open: false,
+            theme_menu_open: false,
             custom_fields,
             api_field,
             api_saved: false,
@@ -204,6 +216,14 @@ impl Workspace {
             _subscriptions: subscriptions,
             _poll: poll,
         };
+
+        this.sidebar_w = this
+            .store
+            .setting("sidebar_width")
+            .ok()
+            .flatten()
+            .and_then(|raw| raw.parse::<f32>().ok())
+            .map_or(layout::SIDEBAR_W, |w| w.clamp(MIN_SIDEBAR_W, MAX_SIDEBAR_W));
 
         let muted = this.muted;
         let entries_open = this.entries_open;
@@ -285,9 +305,6 @@ impl Workspace {
             tracing::error!(%err, "failed to remember last-open entry");
         }
 
-        let voice = self.editor.read(cx).voice();
-        self.topbar
-            .update(cx, |topbar, cx| topbar.set_voice(voice, cx));
 
         let label = self
             .store
@@ -370,9 +387,6 @@ impl Workspace {
         match event {
             EditorEvent::Edited => self.on_edited(cx),
             EditorEvent::VoiceChanged => {
-                let voice = self.editor.read(cx).voice();
-                self.topbar
-                    .update(cx, |topbar, cx| topbar.set_voice(voice, cx));
             }
             EditorEvent::ScrollChanged => {
                 let scrolled = self.editor.read(cx).is_scrolled();
@@ -403,41 +417,6 @@ impl Workspace {
         }
     }
 
-    /// Voice edits from the `Aa` popover, forwarded to the editor as the
-    /// same actions the keymap binds. Dispatching on the editor's focus
-    /// handle reaches its handlers even while the popover holds focus.
-    fn on_topbar_event(
-        &mut self,
-        _topbar: &Entity<Topbar>,
-        event: &TopbarEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let handle = self.editor.focus_handle(cx);
-        match event {
-            TopbarEvent::SetFamily(family) => {
-                let index = match family {
-                    FontFamily::Literata => 0,
-                    FontFamily::Inter => 1,
-                    FontFamily::Quattro => 2,
-                    FontFamily::Mono => 3,
-                };
-                handle.dispatch_action(&cmd::SetFamily { family: index }, window, cx);
-            }
-            TopbarEvent::SetSize(requested) => {
-                let current = self.editor.read(cx).voice().size;
-                if *requested > current + f32::EPSILON {
-                    handle.dispatch_action(&cmd::IncreaseSize, window, cx);
-                } else if *requested < current - f32::EPSILON {
-                    handle.dispatch_action(&cmd::DecreaseSize, window, cx);
-                }
-            }
-            TopbarEvent::SetWeight(weight) => {
-                handle.dispatch_action(&cmd::SetWeight { weight: *weight }, window, cx);
-            }
-        }
-    }
-
     // ── Workspace actions ──────────────────────────────────────────────────
 
     fn act_new_entry(&mut self, _: &cmd::NewEntry, window: &mut Window, cx: &mut Context<Self>) {
@@ -453,7 +432,7 @@ impl Workspace {
         let from = self.sidebar_width_now();
         self.entries_open = !self.entries_open;
         let to = if self.entries_open {
-            layout::SIDEBAR_W
+            self.sidebar_w
         } else {
             0.0
         };
@@ -643,11 +622,11 @@ impl Workspace {
             Some(slide) => {
                 let t = (slide.start.elapsed().as_secs_f32() / motion::MOVE.as_secs_f32())
                     .clamp(0.0, 1.0);
-                slide.from + (slide.to - slide.from) * motion::spring(t)
+                slide.from + (slide.to - slide.from) * motion::ease_out_quint(t)
             }
             None => {
                 if self.entries_open {
-                    layout::SIDEBAR_W
+                    self.sidebar_w
                 } else {
                     0.0
                 }
@@ -660,7 +639,7 @@ impl Workspace {
     fn animated_sidebar_width(&mut self, window: &Window) -> f32 {
         let Some(slide) = &self.slide else {
             return if self.entries_open {
-                layout::SIDEBAR_W
+                self.sidebar_w
             } else {
                 0.0
             };
@@ -672,7 +651,7 @@ impl Workspace {
             to
         } else {
             window.request_animation_frame();
-            slide.from + (slide.to - slide.from) * motion::spring(t.max(0.0))
+            slide.from + (slide.to - slide.from) * motion::ease_out_quint(t.max(0.0))
         }
     }
 
@@ -750,6 +729,23 @@ impl Render for Workspace {
             .font_family(FONT_UI)
             .text_size(px(layout::UI_TEXT))
             .text_color(tokens.ink)
+            .when(self.resizing_sidebar, |this| {
+                this.on_mouse_move(cx.listener(|this, event: &gpui::MouseMoveEvent, _, cx| {
+                    let next = f32::from(event.position.x).clamp(MIN_SIDEBAR_W, MAX_SIDEBAR_W);
+                    if (next - this.sidebar_w).abs() > 0.5 {
+                        this.sidebar_w = next;
+                        cx.notify();
+                    }
+                }))
+                .on_mouse_up(
+                    gpui::MouseButton::Left,
+                    cx.listener(|this, _: &gpui::MouseUpEvent, _, cx| {
+                        this.resizing_sidebar = false;
+                        this.persist_setting("sidebar_width", &format!("{:.0}", this.sidebar_w));
+                        cx.notify();
+                    }),
+                )
+            })
             .child(
                 // The sidebar slot: the one sanctioned layout animation.
                 // The inner panel is fixed-width and slides with the slot's
@@ -763,11 +759,32 @@ impl Render for Workspace {
                         div()
                             .flex_none()
                             .h_full()
-                            .w(px(layout::SIDEBAR_W))
-                            .ml(px(width - layout::SIDEBAR_W))
+                            .w(px(self.sidebar_w))
+                            .ml(px(width - self.sidebar_w))
                             .child(self.sidebar.clone()),
                     ),
             )
+            // The divider drag handle: a slim invisible strip over the
+            // sidebar's right edge; drag to resize.
+            .when(self.entries_open && self.slide.is_none(), |this| {
+                this.child(
+                    div()
+                        .id("sidebar-resize")
+                        .absolute()
+                        .top_0()
+                        .bottom_0()
+                        .left(px(width - 3.0))
+                        .w(px(6.))
+                        .cursor_col_resize()
+                        .on_mouse_down(
+                            gpui::MouseButton::Left,
+                            cx.listener(|this, _, _, cx| {
+                                this.resizing_sidebar = true;
+                                cx.notify();
+                            }),
+                        ),
+                )
+            })
             .child(
                 div()
                     .flex_1()
@@ -785,7 +802,23 @@ impl Render for Workspace {
                         div()
                             .flex_1()
                             .min_h(px(0.))
-                            .child(self.editor.clone()),
+                            .relative()
+                            .child(self.editor.clone())
+                            // Scrolling text slips under this fade instead of
+                            // hitting a hard hairline.
+                            .child(
+                                div()
+                                    .absolute()
+                                    .top_0()
+                                    .left_0()
+                                    .right_0()
+                                    .h(px(24.))
+                                    .bg(gpui::linear_gradient(
+                                        180.,
+                                        gpui::linear_color_stop(tokens.bg, 0.),
+                                        gpui::linear_color_stop(tokens.bg.opacity(0.), 1.),
+                                    )),
+                            ),
                     ),
             )
             .children(self.render_settings(window, cx))

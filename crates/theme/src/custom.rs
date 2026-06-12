@@ -80,7 +80,7 @@ pub fn derive_tokens(accent: Hsla, bg: Hsla, fg: Hsla) -> Tokens {
         hairline: fg.alpha(0.12),
         accent,
         selection: accent.alpha(if light { 0.18 } else { 0.22 }),
-        muse: with_hue_rotated(accent, 40.0),
+        muse: muse_from(accent, bg, fg),
         moss: with_chroma_scaled(with_hue_rotated(accent, -80.0), 0.6),
         shadow: {
             let mut shadow = rgb(0x1C1914);
@@ -88,6 +88,35 @@ pub fn derive_tokens(accent: Hsla, bg: Hsla, fg: Hsla) -> Tokens {
             Hsla::from(shadow)
         },
     }
+}
+
+/// Muse's annotation ink: a close kin of the accent — same family, a
+/// whisper of hue drift and slightly softer chroma — kept legible against
+/// the page. One hue story per theme; the margin never clashes with the
+/// caret or the selection.
+#[must_use]
+pub fn muse_from(accent: Hsla, bg: Hsla, fg: Hsla) -> Hsla {
+    legible_against(
+        with_chroma_scaled(with_hue_rotated(accent, 14.0), 0.92),
+        bg,
+        fg,
+    )
+}
+
+/// Annotation ink must stay readable on the page: when `color` sits within
+/// 0.28 OKLCH lightness of the background (a gray accent, a black-on-black
+/// rotation), pull it toward the foreground until it clears the bar.
+fn legible_against(color: Hsla, bg: Hsla, fg: Hsla) -> Hsla {
+    const MIN_CONTRAST_L: f32 = 0.28;
+    if (lightness(color) - lightness(bg)).abs() >= MIN_CONTRAST_L {
+        return color;
+    }
+    let target = if lightness(fg) > lightness(bg) {
+        (lightness(bg) + MIN_CONTRAST_L + 0.08).min(1.0)
+    } else {
+        (lightness(bg) - MIN_CONTRAST_L - 0.08).max(0.0)
+    };
+    with_lightness(color, target)
 }
 
 /// The light and dark palettes the app is currently dressed in. The theme
@@ -151,8 +180,9 @@ fn derived(name: &'static str, l: [u32; 3], d: [u32; 3]) -> ThemePreset {
     }
 }
 
-/// The bundled presets: the Paper & Dusk defaults plus four quiet, warm
-/// companions. Order is display order.
+/// The bundled presets: the Paper & Dusk defaults plus four bold,
+/// magazine-leaning pairs — saturated accents, decisive backgrounds, no
+/// pastel hedging. Order is display order.
 #[must_use]
 pub fn presets() -> Vec<ThemePreset> {
     vec![
@@ -161,25 +191,32 @@ pub fn presets() -> Vec<ThemePreset> {
             light: paper(),
             dark: dusk(),
         },
+        // OpenAI Codex's actual palette: blue #0285FF on white with
+        // #0D0D0D ink; #339CFF on #181818 with white ink by night.
         derived(
-            "Rose",
-            [0xA85D69, 0xFBF6F4, 0x2A2024],
-            [0xD49099, 0x1D1418, 0xEFE6E8],
+            "Codex",
+            [0x0285FF, 0xFFFFFF, 0x0D0D0D],
+            [0x339CFF, 0x181818, 0xFFFFFF],
         ),
+        // Black on white, white on black. Editorial, no color at all —
+        // the boldest move is restraint.
         derived(
-            "Lavender",
-            [0x7A6FA8, 0xF8F7FB, 0x262331],
-            [0xA9A0D6, 0x161420, 0xE9E7F2],
+            "Magazine",
+            [0x111111, 0xFFFFFF, 0x111111],
+            [0xFAFAFA, 0x0A0A0A, 0xFAFAFA],
         ),
+        // Saturated crimson against stark neutrals. Cover-story red.
         derived(
-            "Sea Glass",
-            [0x4F8A80, 0xF4F8F6, 0x1F2A27],
-            [0x8FBFB4, 0x121A18, 0xE4EEEA],
+            "Scarlet",
+            [0xDC2626, 0xFFFFFF, 0x111111],
+            [0xF43F5E, 0x0B0608, 0xF5E9EC],
         ),
+        // Hot green on near-black; the light side keeps the ink dark and
+        // the green loud. Phosphor terminal by night, fashion spread by day.
         derived(
-            "Sandstone",
-            [0xB07E3E, 0xFAF6EF, 0x2B2519],
-            [0xD9A968, 0x1A1712, 0xEFE8DC],
+            "Neon",
+            [0x15803D, 0xFCFCF9, 0x0E1A12],
+            [0x22C55E, 0x050807, 0xE8F5EC],
         ),
     ]
 }

@@ -1,0 +1,37 @@
+# Tag-driven releases: push a v* tag (or run scripts/release.sh, which tags
+# for you) and CI builds the app on Apple silicon and attaches Muse.dmg +
+# Muse.zip to the GitHub release. The landing page's download button reads
+# releases/latest/download/Muse.dmg, so releases go live automatically.
+
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14 # Apple silicon
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Package
+        run: scripts/package.sh
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" dist/Muse.dmg dist/Muse.zip --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" dist/Muse.dmg dist/Muse.zip \
+              --title "Muse ${GITHUB_REF_NAME#v}" \
+              --generate-notes
+          fi

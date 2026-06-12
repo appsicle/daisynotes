@@ -3,6 +3,7 @@
 use gpui::{App, Global, Hsla, rgb};
 use serde::{Deserialize, Serialize};
 
+use crate::custom::muse_from;
 use crate::oklch::lerp_hsla;
 
 /// Which of the two palettes is active.
@@ -92,21 +93,24 @@ fn hxa(hex: u32, alpha: f32) -> Hsla {
     Hsla::from(rgba)
 }
 
-/// The Paper (light) palette, exactly as specified in PLAN §8.
+/// The Paper (light) palette, exactly as specified in PLAN §8 — except the
+/// muse ink, which is now derived from the accent (one hue story per theme).
 #[must_use]
 pub fn paper() -> Tokens {
     let accent = hx(0xB86450);
+    let bg = hx(0xFAF8F5);
+    let ink = hx(0x26221C);
     Tokens {
-        bg: hx(0xFAF8F5),
+        bg,
         surface: hx(0xFFFFFF),
         surface_lifted: hx(0xFFFFFF),
-        ink: hx(0x26221C),
+        ink,
         ink_secondary: hx(0x6F6A61),
         ink_tertiary: hx(0xA8A296),
         hairline: hx(0xECE8E1),
         accent,
         selection: accent.alpha(0.18),
-        muse: hx(0x6E6AA8),
+        muse: muse_from(accent, bg, ink),
         moss: hx(0x5F7A5A),
         shadow: hxa(0x1C1914, 0.06),
     }
@@ -116,17 +120,19 @@ pub fn paper() -> Tokens {
 #[must_use]
 pub fn dusk() -> Tokens {
     let accent = hx(0xE0907C);
+    let bg = hx(0x171512);
+    let ink = hx(0xEDE9E2);
     Tokens {
-        bg: hx(0x171512),
+        bg,
         surface: hx(0x1F1C18),
         surface_lifted: hx(0x2A2622),
-        ink: hx(0xEDE9E2),
+        ink,
         ink_secondary: hx(0xA39D92),
         ink_tertiary: hx(0x6E695F),
         hairline: hx(0x2A2722),
         accent,
         selection: accent.alpha(0.22),
-        muse: hx(0xA8A4DE),
+        muse: muse_from(accent, bg, ink),
         moss: hx(0x8FAE89),
         // Dusk elevates with lifted surfaces + hairlines, not shadows
         // (PLAN §8); same shadow hue at zero alpha keeps the crossfade a

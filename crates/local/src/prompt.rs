@@ -25,7 +25,7 @@ const OUTPUT_INSTRUCTION: &str = r#"Decide now. Answer with EXACTLY ONE JSON obj
 
 {"tool":"respond","register":"<essay|journal|story|math|letter|notes>","body":"<one warm short paragraph>"}
 
-Rules: at most two notes; quotes must appear verbatim in the entry and stay short; notes are brief — two sentences is a long note. A reaction emoji on a line you loved is often better than a comment."#;
+Rules: at most two notes; quotes must appear verbatim in the entry and stay short; notes are brief — two sentences is a long note. Every body speaks directly to the writer as "you" — never "she", "her", or "the writer". A reaction emoji on a line you loved is often better than a comment."#;
 
 /// Build the full Gemma-format prompt string for one request.
 ///

@@ -15,7 +15,7 @@ use crate::{Editor, notes};
 
 /// Half of the pill's approximate width, used to center it over the
 /// selection before its real layout is known.
-const PILL_HALF_W: f32 = 108.0;
+const PILL_HALF_W: f32 = 150.0;
 
 /// Build the format pill overlay, if it should be visible.
 pub(crate) fn render_pill(
@@ -53,7 +53,10 @@ pub(crate) fn render_pill(
     let position = point(anchor_at.x - px(PILL_HALF_W), anchor_at.y - px(10.0));
 
     let ink_active = |ink: Option<Ink>| uniform_ink == Some(ink);
-    let body = pill()
+    let style_row = div()
+        .flex()
+        .items_center()
+        .gap(px(2.))
         .child(glyph_toggle("pill-bold", "B", bold, muse_commands::Bold, &tokens, |el| {
             el.font_weight(FontWeight::BOLD)
         }))
@@ -83,6 +86,20 @@ pub(crate) fn render_pill(
         .child(ink_dot(3, palette[3], ink_active(Some(Ink::Moss)), &tokens))
         .child(seperator(&tokens))
         .child(clear_ink_button(&tokens));
+
+    let body = pill().child(
+        div()
+            .flex()
+            .flex_col()
+            .child(style_row.pb(px(3.)))
+            .child(
+                div()
+                    .h(px(1.))
+                    .mx(px(2.))
+                    .bg(tokens.hairline.opacity(0.6)),
+            )
+            .child(voice_row(editor.doc.voice(), &tokens).pt(px(3.))),
+    );
 
     let bloom = div().occlude().child(body).with_animation(
         "pill-bloom",
@@ -120,10 +137,10 @@ fn glyph_toggle<A: Action + Clone>(
             .flex_none()
             .items_center()
             .justify_center()
-            .w(px(24.0))
-            .h(px(24.0))
+            .w(px(22.0))
+            .h(px(22.0))
             .rounded(px(metrics::RADIUS_SM))
-            .text_size(px(metrics::UI_TEXT))
+            .text_size(px(metrics::UI_SMALL))
             .font_family(fonts::FONT_UI)
             .text_color(color),
     );
@@ -147,8 +164,8 @@ fn ink_dot(index: usize, color: gpui::Hsla, active: bool, tokens: &Tokens) -> im
         .flex_none()
         .items_center()
         .justify_center()
-        .w(px(18.0))
-        .h(px(18.0))
+        .w(px(16.0))
+        .h(px(16.0))
         .rounded_full()
         .cursor_pointer()
         .when(active, |el| el.border_1().border_color(ring))
@@ -160,10 +177,11 @@ fn ink_dot(index: usize, color: gpui::Hsla, active: bool, tokens: &Tokens) -> im
                 cx,
             );
         })
-        .child(div().w(px(12.0)).h(px(12.0)).rounded_full().bg(color))
+        .child(div().w(px(10.0)).h(px(10.0)).rounded_full().bg(color))
 }
 
-/// The X that clears ink back to the default.
+/// The X that clears ink back to the default. The icon carries an explicit
+/// tint (gpui svg elements never inherit the parent's text color).
 fn clear_ink_button(tokens: &Tokens) -> impl IntoElement {
     let hover_bg = tokens.hairline.opacity(0.6);
     div()
@@ -172,25 +190,137 @@ fn clear_ink_button(tokens: &Tokens) -> impl IntoElement {
         .flex_none()
         .items_center()
         .justify_center()
-        .w(px(22.0))
+        .w(px(20.0))
         .h(px(22.0))
         .rounded(px(metrics::RADIUS_SM))
-        .text_color(tokens.ink_tertiary)
         .cursor_pointer()
         .hover(move |style| style.bg(hover_bg))
         .on_mouse_down(MouseButton::Left, |_, window, cx| {
             window.dispatch_action(Box::new(muse_commands::SetInk { ink: None }), cx);
         })
-        .child(icon(IconName::X).size(px(12.0)))
+        .child(icon(IconName::X).size(px(11.0)).color(tokens.ink_tertiary))
+}
+
+/// The pill's second row: the entry voice — family, size, weight.
+fn voice_row(voice: muse_core::Voice, tokens: &Tokens) -> Div {
+    use muse_core::FontFamily;
+
+    let families = [
+        (0u8, FontFamily::Literata, fonts::FONT_SERIF),
+        (1, FontFamily::Inter, fonts::FONT_SANS),
+        (2, FontFamily::Quattro, fonts::FONT_QUATTRO),
+        (3, FontFamily::Mono, fonts::FONT_MONO),
+    ];
+    let weights = [300u16, 400, 700];
+
+    let mut row = div().flex().items_center().gap(px(1.));
+    for (index, family, font_name) in families {
+        let active = voice.family == family;
+        let hover_bg = tokens.hairline.opacity(0.6);
+        row = row.child(
+            div()
+                .id(("pill-family", index as usize))
+                .flex()
+                .flex_none()
+                .items_center()
+                .justify_center()
+                .w(px(24.0))
+                .h(px(22.0))
+                .rounded(px(metrics::RADIUS_SM))
+                .text_size(px(metrics::UI_SMALL))
+                .font_family(font_name)
+                .text_color(if active { tokens.accent } else { tokens.ink_tertiary })
+                .cursor_pointer()
+                .hover(move |style| style.bg(hover_bg))
+                .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                    window.dispatch_action(
+                        Box::new(muse_commands::SetFamily { family: index }),
+                        cx,
+                    );
+                })
+                .child("Aa"),
+        );
+    }
+
+    row = row
+        .child(seperator(tokens))
+        .child(size_step("pill-size-down", "−", false, tokens))
+        .child(
+            div()
+                .flex_none()
+                .w(px(18.0))
+                .text_size(px(metrics::UI_SMALL))
+                .font_family(fonts::FONT_UI)
+                .text_color(tokens.ink_secondary)
+                .text_center()
+                .child(SharedString::from(format!("{:.0}", voice.size))),
+        )
+        .child(size_step("pill-size-up", "+", true, tokens))
+        .child(seperator(tokens));
+
+    for weight in weights {
+        let active = voice.weight == weight;
+        let hover_bg = tokens.hairline.opacity(0.6);
+        row = row.child(
+            div()
+                .id(("pill-weight", weight as usize))
+                .flex()
+                .flex_none()
+                .items_center()
+                .justify_center()
+                .w(px(20.0))
+                .h(px(22.0))
+                .rounded(px(metrics::RADIUS_SM))
+                .text_size(px(metrics::UI_SMALL))
+                .font_family(fonts::FONT_UI)
+                .font_weight(FontWeight(f32::from(weight)))
+                .text_color(if active { tokens.accent } else { tokens.ink_tertiary })
+                .cursor_pointer()
+                .hover(move |style| style.bg(hover_bg))
+                .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                    window
+                        .dispatch_action(Box::new(muse_commands::SetWeight { weight }), cx);
+                })
+                .child("A"),
+        );
+    }
+    row
+}
+
+/// One of the −/+ size steppers.
+fn size_step(id: &'static str, label: &'static str, up: bool, tokens: &Tokens) -> impl IntoElement {
+    let hover_bg = tokens.hairline.opacity(0.6);
+    div()
+        .id(id)
+        .flex()
+        .flex_none()
+        .items_center()
+        .justify_center()
+        .w(px(18.0))
+        .h(px(22.0))
+        .rounded(px(metrics::RADIUS_SM))
+        .text_size(px(metrics::UI_SMALL))
+        .font_family(fonts::FONT_UI)
+        .text_color(tokens.ink_tertiary)
+        .cursor_pointer()
+        .hover(move |style| style.bg(hover_bg))
+        .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+            if up {
+                window.dispatch_action(Box::new(muse_commands::IncreaseSize), cx);
+            } else {
+                window.dispatch_action(Box::new(muse_commands::DecreaseSize), cx);
+            }
+        })
+        .child(label)
 }
 
 fn seperator(tokens: &Tokens) -> impl IntoElement {
     div()
         .flex_none()
         .w(px(1.0))
-        .h(px(14.0))
-        .mx(px(3.0))
-        .bg(tokens.hairline)
+        .h(px(12.0))
+        .mx(px(4.0))
+        .bg(tokens.hairline.opacity(0.7))
 }
 
 /// Build the margin-note card overlay (open card or a dismissed card

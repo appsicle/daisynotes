@@ -32,11 +32,11 @@ quote ::= "\"" char{1,300} "\""
 
 context ::= "\"" char{0,24} "\""
 
-body ::= "\"" char{0,300} "\""
+body ::= "\"" char{0,240} "\""
 
 longbody ::= "\"" char{1,640} "\""
 
-char ::= [^"\\\x7F\x00-\x1F] | "\\" (["\\bfnrt] | "u" hex hex hex hex)
+char ::= [^"\\\x7F\x00-\x1F] | "\\" ([\\bfnrt] | "u" hex hex hex hex)
 
 hex ::= [0-9a-fA-F]
 "#;

@@ -271,14 +271,14 @@ mod tests {
     #[test]
     fn boot_resolves_named_preset_and_custom_triplets() {
         let store = Store::open_in_memory().unwrap();
-        store.set_setting("theme.preset", "Rose").unwrap();
+        store.set_setting("theme.preset", "Codex").unwrap();
         let boot = Boot::load(&store);
-        let rose = presets()
+        let codex = presets()
             .into_iter()
-            .find(|p| p.name == "Rose")
+            .find(|p| p.name == "Codex")
             .unwrap()
             .pair();
-        assert_eq!(boot.pair, rose);
+        assert_eq!(boot.pair, codex);
 
         store.set_setting("theme.preset", "custom").unwrap();
         store

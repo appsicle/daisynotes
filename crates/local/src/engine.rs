@@ -149,6 +149,8 @@ impl Engine {
         Ok(LlamaSampler::chain(
             [
                 grammar,
+                // Small models loop ("hjhjhj…") without a repeat penalty.
+                LlamaSampler::penalties(128, 1.18, 0.02, 0.0),
                 LlamaSampler::temp(TEMPERATURE),
                 LlamaSampler::top_p(TOP_P, 1),
                 LlamaSampler::dist(seed),
