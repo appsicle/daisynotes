@@ -51,9 +51,28 @@ swift scripts/make-icon.swift "$ICON_TMP"
 iconutil -c icns "$ICON_TMP/Muse.iconset" -o "$APP/Contents/Resources/Muse.icns"
 rm -rf "$ICON_TMP"
 
-echo "── signing (ad-hoc) ──"
-codesign --force --deep --sign - "$APP"
+# Sign with Developer ID when one is in the keychain (hardened runtime,
+# required for notarization); fall back to ad-hoc for local builds.
+IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null \
+  | grep -m1 -o '"Developer ID Application[^"]*"' | tr -d '"' || true)
+if [[ -n "$IDENTITY" ]]; then
+  echo "── signing ($IDENTITY) ──"
+  codesign --force --deep --options runtime --timestamp --sign "$IDENTITY" "$APP"
+else
+  echo "── signing (ad-hoc; no Developer ID in keychain) ──"
+  codesign --force --deep --sign - "$APP"
+fi
 codesign --verify --strict "$APP"
+
+# Notarize + staple when credentials are stored (one-time:
+#   xcrun notarytool store-credentials muse-notary --apple-id … --team-id … --password …)
+if [[ -n "$IDENTITY" ]] && xcrun notarytool history --keychain-profile muse-notary >/dev/null 2>&1; then
+  echo "── notarizing ──"
+  ditto -c -k --keepParent "$APP" "$DIST/Muse-notarize.zip"
+  xcrun notarytool submit "$DIST/Muse-notarize.zip" --keychain-profile muse-notary --wait
+  xcrun stapler staple "$APP"
+  rm -f "$DIST/Muse-notarize.zip"
+fi
 
 echo "── archiving ──"
 ditto -c -k --keepParent "$APP" "$DIST/Muse.zip"
