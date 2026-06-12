@@ -34,6 +34,9 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - name: DMG styling deps
+        run: pipx install dmgbuild
+
       - name: Package
         run: scripts/package.sh
 

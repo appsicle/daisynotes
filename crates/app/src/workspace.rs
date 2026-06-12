@@ -225,6 +225,15 @@ impl Workspace {
             .and_then(|raw| raw.parse::<f32>().ok())
             .map_or(layout::SIDEBAR_W, |w| w.clamp(MIN_SIDEBAR_W, MAX_SIDEBAR_W));
 
+        // First-launch onboarding: with no API key and no on-device model,
+        // quietly start fetching the light model in the background. By the
+        // time the first entry has a few paragraphs, Muse can think — no
+        // setup screen, no download button, no fanfare.
+        if this.key_missing && muse_local::installed_model().is_none() {
+            tracing::info!("no brain available; auto-downloading the light on-device model");
+            this.local.start_download(muse_local::LocalModel::Light);
+        }
+
         let muted = this.muted;
         let entries_open = this.entries_open;
         this.topbar.update(cx, |topbar, cx| {

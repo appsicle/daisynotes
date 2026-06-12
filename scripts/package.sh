@@ -77,13 +77,31 @@ fi
 echo "── archiving ──"
 ditto -c -k --keepParent "$APP" "$DIST/Muse.zip"
 
-# The installer DMG: Muse.app beside an /Applications symlink, so opening
-# it presents the classic drag-to-install pair.
+# The installer DMG: Muse.app beside /Applications on the styled paper
+# background (rose arrow, "drag Muse into Applications"). The app is baked
+# in at image-creation time (macOS 26 denies copying bundles onto mounted
+# images), then style-dmg.py writes the .DS_Store onto the mounted volume.
 STAGE=$(mktemp -d)
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname "Muse" -srcfolder "$STAGE" -ov -format UDZO -quiet "$DIST/Muse.dmg"
-rm -rf "$STAGE"
+swift scripts/make-dmg-background.swift "$STAGE/.background.png"
+
+RW=$(mktemp -d)/Muse-rw.dmg
+hdiutil create -volname "Muse" -srcfolder "$STAGE" -ov -format UDRW -quiet "$RW"
+MOUNT=$(hdiutil attach "$RW" -readwrite -noverify -noautoopen | grep -o '/Volumes/.*')
+
+# ds_store + mac_alias live in the dmgbuild pipx venv (pipx install dmgbuild).
+STYLER=$(ls "$HOME/.local/pipx/venvs/dmgbuild/bin/python" 2>/dev/null || true)
+if [[ -n "$STYLER" ]]; then
+  "$STYLER" scripts/style-dmg.py "$MOUNT" || echo "(DMG styling failed; plain layout)"
+else
+  echo "(pipx install dmgbuild for the styled DMG window; plain layout)"
+fi
+
+sync
+hdiutil detach "$MOUNT" -quiet
+hdiutil convert "$RW" -format UDZO -o "$DIST/Muse.dmg" -ov -quiet
+rm -rf "$STAGE" "$(dirname "$RW")"
 
 echo
 echo "shipped:"
