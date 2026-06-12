@@ -57,7 +57,14 @@ codesign --verify --strict "$APP"
 
 echo "── archiving ──"
 ditto -c -k --keepParent "$APP" "$DIST/Muse.zip"
-hdiutil create -volname "Muse" -srcfolder "$APP" -ov -format UDZO -quiet "$DIST/Muse.dmg"
+
+# The installer DMG: Muse.app beside an /Applications symlink, so opening
+# it presents the classic drag-to-install pair.
+STAGE=$(mktemp -d)
+cp -R "$APP" "$STAGE/"
+ln -s /Applications "$STAGE/Applications"
+hdiutil create -volname "Muse" -srcfolder "$STAGE" -ov -format UDZO -quiet "$DIST/Muse.dmg"
+rm -rf "$STAGE"
 
 echo
 echo "shipped:"
