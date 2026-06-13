@@ -15,8 +15,8 @@ use gpui::{
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, ScrollWheelEvent, SharedString, Style,
     TextAlign, TextRun, Window, WrappedLine, fill, point, px, quad, relative, size,
 };
-use muse_core::{InlineStyle, Voice};
-use muse_theme::{ActiveTheme, fonts, layout as metrics, motion};
+use daisynotes_core::{InlineStyle, Voice};
+use daisynotes_theme::{ActiveTheme, fonts, layout as metrics, motion};
 
 use crate::layout::{CodaSnap, LINE_HEIGHT_FACTOR, SnapDot, SnapPara, Snapshot};
 use crate::notes::{self, NoteSlot};
@@ -303,11 +303,11 @@ impl Editor {
         }
         snap.scroll = self.scroll;
 
-        // Annotations: place reaction highlights and citation carets, mark
-        // withered anchors, drop the fully faded (silently — the app
-        // reconciles via set_annotations). A reaction's marker is the emoji
-        // badge at the top-right corner of its first highlight rect; a
-        // note's marker is the caret just past the quoted text.
+        // Annotations: a note gets a subtle highlight over its quoted text
+        // (hover opens the card); a reaction gets a floating emoji circle out
+        // in the right margin, never touching the words. Mark withered
+        // anchors and drop the fully faded (silently — the app reconciles via
+        // set_annotations).
         let now = Instant::now();
         {
             let doc = &self.doc;
@@ -315,14 +315,24 @@ impl Editor {
                 match doc.anchor_range(slot.anchor) {
                     Some(range) => {
                         if slot.ann.emoji.is_some() {
-                            slot.last_rects = snap.selection_rects(range.clone());
-                            if let Some(first) = slot.last_rects.first() {
-                                slot.last_center =
-                                    Some((first.x + first.w - 2.0, first.y + 2.0));
-                            }
+                            // Reaction: no text highlight; the emoji rides in
+                            // the right margin, vertically on the anchor's line.
+                            slot.last_rects = Vec::new();
+                            let (_, top_y) = snap.caret_point(range.start);
+                            let margin_x = snap.wrap_width + 16.0;
+                            slot.last_center = Some((margin_x, top_y + line_height * 0.5));
                         } else {
-                            let (x, y) = snap.caret_point(range.end);
-                            slot.last_center = Some((x + 5.0, y + line_height * 0.22));
+                            // Note: highlight the quoted text; hover anchors on
+                            // the first rect (where the card blooms).
+                            slot.last_rects = snap.selection_rects(range.clone());
+                            slot.last_center = slot
+                                .last_rects
+                                .first()
+                                .map(|r| (r.x + r.w * 0.5, r.y + r.h * 0.5))
+                                .or_else(|| {
+                                    let (x, y) = snap.caret_point(range.start);
+                                    Some((x, y + line_height * 0.5))
+                                });
                         }
                     }
                     None => {
@@ -358,6 +368,13 @@ impl Editor {
                 slot.last_center.map(|center| SnapDot {
                     id: slot.ann.id,
                     center,
+                    // Notes are hit over their highlight; reactions over the
+                    // circle around `center`.
+                    rects: if slot.ann.emoji.is_none() {
+                        slot.last_rects.clone()
+                    } else {
+                        Vec::new()
+                    },
                 })
             })
             .collect();
@@ -455,21 +472,22 @@ impl Editor {
                 }
             }
 
-            // Reaction highlights, under the glyphs: the anchored text
-            // tinted and outlined, flashing in loud when the reaction lands.
+            // Note highlights, under the glyphs: the quoted text gets a quiet
+            // wash — a soft background fill, no outline — that brightens a
+            // touch while the note is hovered or its card is open. Painted
+            // beneath the paragraphs, so it never covers a word.
             for slot in &self.notes {
-                if slot.ann.emoji.is_none() || slot.last_rects.is_empty() {
+                if slot.ann.emoji.is_some() || slot.last_rects.is_empty() {
                     continue;
                 }
-                let (alpha, pop) = annotation_anim(slot, now);
+                let (alpha, _pop) = annotation_anim(slot, now);
                 if alpha <= 0.01 {
                     continue;
                 }
-                // The entrance flash: the tint starts hot and settles.
-                let flash = 1.0 + 0.9 * (1.0 - pop);
-                let tint = tokens.muse.alpha(tokens.muse.a * 0.16 * alpha * flash);
-                let edge = tokens.muse.alpha(tokens.muse.a * 0.55 * alpha);
-                let single = slot.last_rects.len() == 1;
+                let engaged = self.hovered_dot == Some(slot.ann.id)
+                    || self.card.as_ref().is_some_and(|card| card.id == slot.ann.id);
+                let strength = if engaged { 0.26 } else { 0.15 };
+                let tint = tokens.muse.alpha(tokens.muse.a * strength * alpha);
                 for hl in &slot.last_rects {
                     if hl.y + hl.h < snap.scroll || hl.y > snap.scroll + viewport_h {
                         continue;
@@ -487,18 +505,7 @@ impl Editor {
                         bottom_left: bottom,
                         bottom_right: bottom,
                     };
-                    if single {
-                        window.paint_quad(quad(
-                            rect,
-                            corners,
-                            tint,
-                            px(1.0),
-                            edge,
-                            BorderStyle::default(),
-                        ));
-                    } else {
-                        window.paint_quad(fill(rect, tint).corner_radii(corners));
-                    }
+                    window.paint_quad(fill(rect, tint).corner_radii(corners));
                 }
             }
 
@@ -542,10 +549,15 @@ impl Editor {
                 }
             }
 
-            // Annotation markers, over the glyphs: reaction emoji badges
-            // popping in with overshoot, citation carets resting just past
-            // their quotes (open on hover, like a cited source).
+            // Reaction markers, out in the right margin: an emoji in a small
+            // lifted circle that pops in with a springy overshoot. A reaction
+            // carries no message, so it never opens a card and never touches
+            // the text. Notes have no marker — their highlight is the whole
+            // signal.
             for slot in &self.notes {
+                let Some(emoji) = &slot.ann.emoji else {
+                    continue;
+                };
                 let Some((marker_x, marker_y)) = slot.last_center else {
                     continue;
                 };
@@ -556,84 +568,42 @@ impl Editor {
                 if alpha <= 0.01 {
                     continue;
                 }
-                let engaged = self.hovered_dot == Some(slot.ann.id)
-                    || self.card.as_ref().is_some_and(|card| card.id == slot.ann.id);
-
-                if let Some(emoji) = &slot.ann.emoji {
-                    // The badge: a small lifted circle riding the highlight's
-                    // top-right corner, scaling in with a springy overshoot.
-                    let scale = ease_out_back(pop);
-                    if scale <= 0.05 {
-                        continue;
-                    }
-                    let diameter = 23.0 * scale;
-                    let center = snap.to_window((marker_x, marker_y - 4.0));
-                    let badge = Bounds::new(
-                        point(
-                            center.x - px(diameter / 2.0),
-                            center.y - px(diameter / 2.0),
-                        ),
-                        size(px(diameter), px(diameter)),
-                    );
-                    let bg = tokens.bg.alpha(tokens.bg.a * alpha);
-                    window.paint_quad(quad(
-                        badge,
-                        px(diameter / 2.0),
-                        bg,
-                        px(1.0),
-                        tokens.hairline.alpha(tokens.hairline.a * alpha),
-                        BorderStyle::default(),
-                    ));
-                    let emoji_size = 12.0 * scale;
-                    let run = TextRun {
-                        len: emoji.len(),
-                        font: date_font(),
-                        color: tokens.ink.alpha(alpha),
-                        background_color: None,
-                        underline: None,
-                        strikethrough: None,
-                    };
-                    let line = window.text_system().shape_line(
-                        emoji.clone(),
-                        px(emoji_size),
-                        &[run],
-                        None,
-                    );
-                    let width = f32::from(line.width);
-                    let origin = point(
-                        center.x - px(width / 2.0),
-                        center.y - px(emoji_size * 0.62),
-                    );
-                    if line.paint(origin, px(emoji_size * 1.25), window, cx).is_err() {
-                        tracing::warn!("reaction emoji paint failed");
-                    }
-                } else {
-                    // The citation caret: a quiet ^ in muse ink, brightening
-                    // when hovered or while its card is open.
-                    let em = snap.line_height / LINE_HEIGHT_FACTOR;
-                    let caret_size = em * 0.72;
-                    let strength = if engaged { 1.0 } else { 0.65 };
-                    let color = tokens.muse.alpha(tokens.muse.a * alpha * strength);
-                    let glyph = SharedString::new_static("^");
-                    let run = TextRun {
-                        len: glyph.len(),
-                        font: date_font(),
-                        color,
-                        background_color: None,
-                        underline: None,
-                        strikethrough: None,
-                    };
-                    let line = window.text_system().shape_line(
-                        glyph,
-                        px(caret_size),
-                        &[run],
-                        None,
-                    );
-                    let width = f32::from(line.width);
-                    let origin = snap.to_window((marker_x - width / 2.0, marker_y));
-                    if line.paint(origin, px(caret_size), window, cx).is_err() {
-                        tracing::warn!("citation caret paint failed");
-                    }
+                let scale = ease_out_back(pop);
+                if scale <= 0.05 {
+                    continue;
+                }
+                let diameter = 23.0 * scale;
+                let center = snap.to_window((marker_x, marker_y));
+                let badge = Bounds::new(
+                    point(center.x - px(diameter / 2.0), center.y - px(diameter / 2.0)),
+                    size(px(diameter), px(diameter)),
+                );
+                let bg = tokens.bg.alpha(tokens.bg.a * alpha);
+                window.paint_quad(quad(
+                    badge,
+                    px(diameter / 2.0),
+                    bg,
+                    px(1.0),
+                    tokens.hairline.alpha(tokens.hairline.a * alpha),
+                    BorderStyle::default(),
+                ));
+                let emoji_size = 12.0 * scale;
+                let run = TextRun {
+                    len: emoji.len(),
+                    font: date_font(),
+                    color: tokens.ink.alpha(alpha),
+                    background_color: None,
+                    underline: None,
+                    strikethrough: None,
+                };
+                let line =
+                    window
+                        .text_system()
+                        .shape_line(emoji.clone(), px(emoji_size), &[run], None);
+                let width = f32::from(line.width);
+                let origin = point(center.x - px(width / 2.0), center.y - px(emoji_size * 0.62));
+                if line.paint(origin, px(emoji_size * 1.25), window, cx).is_err() {
+                    tracing::warn!("reaction emoji paint failed");
                 }
             }
 
@@ -732,7 +702,7 @@ fn shape_coda(
     window: &mut Window,
 ) -> Vec<WrappedLine> {
     let coda_voice = Voice {
-        family: muse_core::FontFamily::Quattro,
+        family: daisynotes_core::FontFamily::Quattro,
         size: size_pt,
         weight: voice.weight,
     };

@@ -4,14 +4,19 @@
 
 use gpui::{
     Action, Animation, AnimationExt as _, AnyElement, Context, Corner, Div, FontWeight,
-    MouseButton, SharedString, Window, anchored, deferred, div, point, prelude::*, px,
+    MouseButton, SharedString, Stateful, Window, anchored, deferred, div, point, prelude::*, px,
 };
-use muse_core::{Ink, InlineStyle};
-use muse_theme::{ActiveTheme, Tokens, fonts, layout as metrics, motion};
-use muse_ui::{IconName, card, icon, pill};
+use daisynotes_core::{FontFamily, InlineStyle};
+use daisynotes_theme::{ActiveTheme, Tokens, fonts, layout as metrics, motion};
+use daisynotes_ui::{IconName, card, icon, pill, soft_shadow};
 
 use crate::notes::{AnnotationTone, reveal_prefix};
-use crate::{Editor, notes};
+use crate::{Editor, PillMenu, notes};
+
+/// The base sizes offered by the size dropdown (points), scrollable.
+const SIZE_MENU: [f32; 16] = [
+    10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 18.0, 20.0, 24.0, 28.0, 32.0, 36.0, 40.0, 48.0, 64.0,
+];
 
 /// Half of the pill's approximate width, used to center it over the
 /// selection before its real layout is known.
@@ -32,7 +37,6 @@ pub(crate) fn render_pill(
     }
     let snap = editor.snapshot.clone()?;
     let tokens = cx.theme().tokens;
-    let palette = tokens.ink_palette();
 
     let tiles = editor.doc.spans().runs_in(range.clone());
     let entire = |get: fn(&InlineStyle) -> bool| -> bool {
@@ -42,32 +46,29 @@ pub(crate) fn render_pill(
     let italic = entire(|s| s.italic);
     let underline = entire(|s| s.underline);
     let strike = entire(|s| s.strike);
-    // The selection's uniform ink, if it has one.
-    let uniform_ink: Option<Option<Ink>> = tiles
-        .first()
-        .map(|(_, style)| style.ink)
-        .filter(|first| tiles.iter().all(|(_, style)| style.ink == *first));
+
+    let voice = editor.doc.voice();
+    let menu = editor.pill_menu();
 
     let (start_x, start_y) = snap.caret_point(range.start);
     let anchor_at = snap.to_window((start_x, start_y));
     let position = point(anchor_at.x - px(PILL_HALF_W), anchor_at.y - px(10.0));
 
-    let ink_active = |ink: Option<Ink>| uniform_ink == Some(ink);
-    let style_row = div()
+    let row = div()
         .flex()
         .items_center()
         .gap(px(2.))
-        .child(glyph_toggle("pill-bold", "B", bold, muse_commands::Bold, &tokens, |el| {
+        .child(glyph_toggle("pill-bold", "B", bold, daisynotes_commands::Bold, &tokens, |el| {
             el.font_weight(FontWeight::BOLD)
         }))
-        .child(glyph_toggle("pill-italic", "I", italic, muse_commands::Italic, &tokens, |el| {
+        .child(glyph_toggle("pill-italic", "I", italic, daisynotes_commands::Italic, &tokens, |el| {
             el.italic()
         }))
         .child(glyph_toggle(
             "pill-underline",
             "U",
             underline,
-            muse_commands::Underline,
+            daisynotes_commands::Underline,
             &tokens,
             |el| el.underline(),
         ))
@@ -75,31 +76,16 @@ pub(crate) fn render_pill(
             "pill-strike",
             "S",
             strike,
-            muse_commands::Strikethrough,
+            daisynotes_commands::Strikethrough,
             &tokens,
             |el| el.line_through(),
         ))
         .child(seperator(&tokens))
-        .child(ink_dot(0, palette[0], ink_active(None), &tokens))
-        .child(ink_dot(1, palette[1], ink_active(Some(Ink::Rose)), &tokens))
-        .child(ink_dot(2, palette[2], ink_active(Some(Ink::Lavender)), &tokens))
-        .child(ink_dot(3, palette[3], ink_active(Some(Ink::Moss)), &tokens))
+        .child(family_dropdown(voice.family, menu == Some(PillMenu::Family), &tokens, cx))
         .child(seperator(&tokens))
-        .child(clear_ink_button(&tokens));
+        .child(size_dropdown(voice.size, menu == Some(PillMenu::Size), &tokens, cx));
 
-    let body = pill().child(
-        div()
-            .flex()
-            .flex_col()
-            .child(style_row.pb(px(3.)))
-            .child(
-                div()
-                    .h(px(1.))
-                    .mx(px(2.))
-                    .bg(tokens.hairline.opacity(0.6)),
-            )
-            .child(voice_row(editor.doc.voice(), &tokens).pt(px(3.))),
-    );
+    let body = pill().child(row);
 
     let bloom = div().occlude().child(body).with_animation(
         "pill-bloom",
@@ -155,163 +141,188 @@ fn glyph_toggle<A: Action + Clone>(
         .child(label)
 }
 
-/// One of the four ink swatches; a quiet ring marks the active one.
-fn ink_dot(index: usize, color: gpui::Hsla, active: bool, tokens: &Tokens) -> impl IntoElement {
-    let ring = tokens.ink_secondary;
-    div()
-        .id(("pill-ink", index))
-        .flex()
-        .flex_none()
-        .items_center()
-        .justify_center()
-        .w(px(16.0))
-        .h(px(16.0))
-        .rounded_full()
-        .cursor_pointer()
-        .when(active, |el| el.border_1().border_color(ring))
-        .on_mouse_down(MouseButton::Left, move |_, window, cx| {
-            window.dispatch_action(
-                Box::new(muse_commands::SetInk {
-                    ink: Some(index as u8),
-                }),
-                cx,
-            );
-        })
-        .child(div().w(px(10.0)).h(px(10.0)).rounded_full().bg(color))
+/// The human-readable name of a content font family.
+fn family_label(family: FontFamily) -> SharedString {
+    SharedString::new_static(match family {
+        FontFamily::Literata => "Literata",
+        FontFamily::Inter => "Inter",
+        FontFamily::Quattro => "iA Writer Quattro",
+        FontFamily::Mono => "JetBrains Mono",
+    })
 }
 
-/// The X that clears ink back to the default. The icon carries an explicit
-/// tint (gpui svg elements never inherit the parent's text color).
-fn clear_ink_button(tokens: &Tokens) -> impl IntoElement {
+/// A dropdown trigger: the current value, a chevron, and a click that toggles
+/// `kind`'s menu. The menu is appended by the caller as an absolute child.
+fn dropdown_trigger(
+    id: &'static str,
+    label: SharedString,
+    open: bool,
+    tokens: &Tokens,
+    cx: &mut Context<Editor>,
+    kind: PillMenu,
+) -> Stateful<Div> {
     let hover_bg = tokens.hairline.opacity(0.6);
-    div()
-        .id("pill-clear-ink")
-        .flex()
-        .flex_none()
-        .items_center()
-        .justify_center()
-        .w(px(20.0))
-        .h(px(22.0))
-        .rounded(px(metrics::RADIUS_SM))
-        .cursor_pointer()
-        .hover(move |style| style.bg(hover_bg))
-        .on_mouse_down(MouseButton::Left, |_, window, cx| {
-            window.dispatch_action(Box::new(muse_commands::SetInk { ink: None }), cx);
-        })
-        .child(icon(IconName::X).size(px(11.0)).color(tokens.ink_tertiary))
-}
-
-/// The pill's second row: the entry voice — family, size, weight.
-fn voice_row(voice: muse_core::Voice, tokens: &Tokens) -> Div {
-    use muse_core::FontFamily;
-
-    let families = [
-        (0u8, FontFamily::Literata, fonts::FONT_SERIF),
-        (1, FontFamily::Inter, fonts::FONT_SANS),
-        (2, FontFamily::Quattro, fonts::FONT_QUATTRO),
-        (3, FontFamily::Mono, fonts::FONT_MONO),
-    ];
-    let weights = [300u16, 400, 700];
-
-    let mut row = div().flex().items_center().gap(px(1.));
-    for (index, family, font_name) in families {
-        let active = voice.family == family;
-        let hover_bg = tokens.hairline.opacity(0.6);
-        row = row.child(
-            div()
-                .id(("pill-family", index as usize))
-                .flex()
-                .flex_none()
-                .items_center()
-                .justify_center()
-                .w(px(24.0))
-                .h(px(22.0))
-                .rounded(px(metrics::RADIUS_SM))
-                .text_size(px(metrics::UI_SMALL))
-                .font_family(font_name)
-                .text_color(if active { tokens.accent } else { tokens.ink_tertiary })
-                .cursor_pointer()
-                .hover(move |style| style.bg(hover_bg))
-                .on_mouse_down(MouseButton::Left, move |_, window, cx| {
-                    window.dispatch_action(
-                        Box::new(muse_commands::SetFamily { family: index }),
-                        cx,
-                    );
-                })
-                .child("Aa"),
-        );
-    }
-
-    row = row
-        .child(seperator(tokens))
-        .child(size_step("pill-size-down", "−", false, tokens))
-        .child(
-            div()
-                .flex_none()
-                .w(px(18.0))
-                .text_size(px(metrics::UI_SMALL))
-                .font_family(fonts::FONT_UI)
-                .text_color(tokens.ink_secondary)
-                .text_center()
-                .child(SharedString::from(format!("{:.0}", voice.size))),
-        )
-        .child(size_step("pill-size-up", "+", true, tokens))
-        .child(seperator(tokens));
-
-    for weight in weights {
-        let active = voice.weight == weight;
-        let hover_bg = tokens.hairline.opacity(0.6);
-        row = row.child(
-            div()
-                .id(("pill-weight", weight as usize))
-                .flex()
-                .flex_none()
-                .items_center()
-                .justify_center()
-                .w(px(20.0))
-                .h(px(22.0))
-                .rounded(px(metrics::RADIUS_SM))
-                .text_size(px(metrics::UI_SMALL))
-                .font_family(fonts::FONT_UI)
-                .font_weight(FontWeight(f32::from(weight)))
-                .text_color(if active { tokens.accent } else { tokens.ink_tertiary })
-                .cursor_pointer()
-                .hover(move |style| style.bg(hover_bg))
-                .on_mouse_down(MouseButton::Left, move |_, window, cx| {
-                    window
-                        .dispatch_action(Box::new(muse_commands::SetWeight { weight }), cx);
-                })
-                .child("A"),
-        );
-    }
-    row
-}
-
-/// One of the −/+ size steppers.
-fn size_step(id: &'static str, label: &'static str, up: bool, tokens: &Tokens) -> impl IntoElement {
-    let hover_bg = tokens.hairline.opacity(0.6);
+    let ink = if open { tokens.ink } else { tokens.ink_secondary };
     div()
         .id(id)
+        .relative()
         .flex()
         .flex_none()
         .items_center()
-        .justify_center()
-        .w(px(18.0))
+        .gap(px(4.0))
         .h(px(22.0))
+        .px(px(8.0))
         .rounded(px(metrics::RADIUS_SM))
         .text_size(px(metrics::UI_SMALL))
         .font_family(fonts::FONT_UI)
-        .text_color(tokens.ink_tertiary)
+        .text_color(ink)
         .cursor_pointer()
+        .when(open, |el| el.bg(tokens.hairline.opacity(0.5)))
         .hover(move |style| style.bg(hover_bg))
-        .on_mouse_down(MouseButton::Left, move |_, window, cx| {
-            if up {
-                window.dispatch_action(Box::new(muse_commands::IncreaseSize), cx);
-            } else {
-                window.dispatch_action(Box::new(muse_commands::DecreaseSize), cx);
-            }
-        })
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |editor, _: &gpui::MouseDownEvent, _window, cx| {
+                editor.toggle_pill_menu(kind, cx)
+            }),
+        )
         .child(label)
+        .child(icon(IconName::ChevronDown).size(px(11.0)).color(tokens.ink_tertiary))
+}
+
+/// The family dropdown: a trigger plus, when open, the family menu below it.
+fn family_dropdown(
+    current: FontFamily,
+    open: bool,
+    tokens: &Tokens,
+    cx: &mut Context<Editor>,
+) -> Stateful<Div> {
+    let mut trigger =
+        dropdown_trigger("pill-family", family_label(current), open, tokens, cx, PillMenu::Family);
+    if open {
+        trigger = trigger.child(family_menu(current, tokens, cx));
+    }
+    trigger
+}
+
+/// The size dropdown: a trigger showing the current points, plus the menu.
+fn size_dropdown(current: f32, open: bool, tokens: &Tokens, cx: &mut Context<Editor>) -> Stateful<Div> {
+    let label = SharedString::from(format!("{current:.0}"));
+    let mut trigger = dropdown_trigger("pill-size", label, open, tokens, cx, PillMenu::Size);
+    if open {
+        trigger = trigger.child(size_menu(current, tokens, cx));
+    }
+    trigger
+}
+
+/// The floating menu shell, dropped just below its trigger.
+fn menu_shell(tokens: &Tokens) -> Div {
+    div()
+        .occlude()
+        .flex()
+        .flex_col()
+        .gap(px(1.0))
+        .p(px(4.0))
+        .bg(tokens.surface_lifted)
+        .border_1()
+        .border_color(tokens.hairline)
+        .rounded(px(metrics::RADIUS_MD))
+        .shadow(soft_shadow(tokens))
+}
+
+/// Position a menu shell as an absolute child just under the trigger.
+fn menu_drop(inner: impl IntoElement) -> Div {
+    div().absolute().top_full().left_0().mt(px(6.0)).child(inner)
+}
+
+/// One selectable menu row: a label, a check when it's the current value.
+fn menu_row(
+    id: gpui::ElementId,
+    selected: bool,
+    tokens: &Tokens,
+    label: impl IntoElement,
+    on_click: impl Fn(&mut Editor, &mut Context<Editor>) + 'static,
+    cx: &mut Context<Editor>,
+) -> Stateful<Div> {
+    let hover_bg = tokens.hairline.opacity(0.6);
+    let accent = tokens.accent;
+    div()
+        .id(id)
+        .flex()
+        .items_center()
+        .justify_between()
+        .gap(px(10.0))
+        .h(px(28.0))
+        .px(px(8.0))
+        .rounded(px(metrics::RADIUS_SM))
+        .cursor_pointer()
+        .when(selected, |el| el.bg(tokens.hairline.opacity(0.5)))
+        .hover(move |style| style.bg(hover_bg))
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |editor, _: &gpui::MouseDownEvent, _window, cx| on_click(editor, cx)),
+        )
+        .child(label)
+        .child(if selected {
+            icon(IconName::Check).size(px(12.0)).color(accent).into_any_element()
+        } else {
+            div().w(px(12.0)).into_any_element()
+        })
+}
+
+/// The font-family menu: every family named in its own typeface.
+fn family_menu(current: FontFamily, tokens: &Tokens, cx: &mut Context<Editor>) -> Div {
+    let families = [
+        (FontFamily::Literata, fonts::FONT_SERIF),
+        (FontFamily::Inter, fonts::FONT_SANS),
+        (FontFamily::Quattro, fonts::FONT_QUATTRO),
+        (FontFamily::Mono, fonts::FONT_MONO),
+    ];
+    let ink = tokens.ink;
+    let mut shell = menu_shell(tokens).min_w(px(196.0));
+    for (family, font) in families {
+        let label = div()
+            .font_family(font)
+            .text_size(px(metrics::UI_TEXT))
+            .text_color(ink)
+            .child(family_label(family));
+        shell = shell.child(menu_row(
+            ("pill-family-item", family as usize).into(),
+            current == family,
+            tokens,
+            label,
+            move |editor, cx| editor.choose_family(family, cx),
+            cx,
+        ));
+    }
+    menu_drop(shell)
+}
+
+/// The font-size menu: a scrollable column of point sizes.
+fn size_menu(current: f32, tokens: &Tokens, cx: &mut Context<Editor>) -> Div {
+    let ink = tokens.ink;
+    let mut list = div()
+        .id("pill-size-scroll")
+        .max_h(px(232.0))
+        .overflow_y_scroll()
+        .flex()
+        .flex_col()
+        .gap(px(1.0));
+    for &size in &SIZE_MENU {
+        let label = div()
+            .font_family(fonts::FONT_UI)
+            .text_size(px(metrics::UI_TEXT))
+            .text_color(ink)
+            .child(SharedString::from(format!("{size:.0}")));
+        list = list.child(menu_row(
+            ("pill-size-item", size as usize).into(),
+            (current - size).abs() < 0.5,
+            tokens,
+            label,
+            move |editor, cx| editor.choose_size(size, cx),
+            cx,
+        ));
+    }
+    menu_drop(menu_shell(tokens).min_w(px(108.0)).child(list))
 }
 
 fn seperator(tokens: &Tokens) -> impl IntoElement {

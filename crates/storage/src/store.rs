@@ -9,7 +9,7 @@ use crate::error::{Result, StoreError};
 use crate::paths::data_dir;
 use crate::schema;
 
-/// Handle to Muse's local SQLite database.
+/// Handle to Daisy Notes's local SQLite database.
 ///
 /// Wraps a single connection in a `parking_lot::Mutex`, so `Store` is
 /// `Send + Sync` and can be shared across threads (the UI thread's synchronous
@@ -34,10 +34,10 @@ impl Store {
         Self::init(Connection::open(path)?)
     }
 
-    /// Open the default database, `data_dir()/muse.sqlite3` — the app's
+    /// Open the default database, `data_dir()/daisynotes.sqlite3` — the app's
     /// launch-path store.
     pub fn open_default() -> Result<Store> {
-        Self::open(&data_dir().join("muse.sqlite3"))
+        Self::open(&data_dir().join("daisynotes.sqlite3"))
     }
 
     /// Open a fresh in-memory database (tests).
@@ -85,7 +85,7 @@ mod tests {
     #[test]
     fn open_twice_is_idempotent_and_preserves_data() {
         let path =
-            std::env::temp_dir().join(format!("muse-storage-test-{}.sqlite3", ulid::Ulid::new()));
+            std::env::temp_dir().join(format!("daisynotes-storage-test-{}.sqlite3", ulid::Ulid::new()));
         {
             let store = Store::open(&path).unwrap();
             store.set_setting("theme", "dusk").unwrap();

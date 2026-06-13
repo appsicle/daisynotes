@@ -6,11 +6,11 @@
 //!
 //! Serialization is hand-rolled over `serde_json::Value` (this crate
 //! depends on `serde_json` but not on `serde` itself); `InlineStyle`'s own
-//! serde impls from muse-core do the style legwork.
+//! serde impls from daisynotes-core do the style legwork.
 
 use std::ops::Range;
 
-use muse_core::InlineStyle;
+use daisynotes_core::InlineStyle;
 use serde_json::{Value, json};
 
 /// Current envelope format version.
@@ -103,7 +103,7 @@ impl Envelope {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use muse_core::Ink;
+    use daisynotes_core::Ink;
 
     fn styled(bold: bool, ink: Option<Ink>) -> InlineStyle {
         InlineStyle {

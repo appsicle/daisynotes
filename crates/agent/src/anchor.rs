@@ -2,7 +2,7 @@
 //!
 //! The model quotes the entry verbatim; [`locate_quote`] turns that quote
 //! (plus a few characters of surrounding context) into a byte range the app
-//! registers as a `muse_core` anchor. [`dismissal_digest`] fingerprints a
+//! registers as a `daisynotes_core` anchor. [`dismissal_digest`] fingerprints a
 //! dismissed note so the same ground is never retrod.
 
 use std::ops::Range;

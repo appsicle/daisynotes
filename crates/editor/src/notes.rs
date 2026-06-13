@@ -9,7 +9,7 @@ use std::ops::Range;
 use std::time::{Duration, Instant};
 
 use gpui::SharedString;
-use muse_core::AnchorId;
+use daisynotes_core::AnchorId;
 use unicode_segmentation::UnicodeSegmentation;
 
 /// How long a note whose anchor text was deleted takes to fade out before

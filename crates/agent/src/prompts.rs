@@ -1,12 +1,12 @@
 //! The one Claude call that does everything.
 //!
 //! [`build_request`] turns a [`DocSnapshot`] into a complete
-//! `muse_api::ClaudeRequest`: the system prompt (which *is* the product's
+//! `daisynotes_api::ClaudeRequest`: the system prompt (which *is* the product's
 //! personality), a single user message carrying the entry, and the three
 //! tools the model must choose exactly one of — `pass`, `leave_notes`,
 //! `respond`.
 
-use muse_api::{ChatMessage, ClaudeRequest, DEFAULT_MODEL, Role};
+use daisynotes_api::{ChatMessage, ClaudeRequest, DEFAULT_MODEL, Role};
 use serde_json::json;
 
 use crate::types::{DocSnapshot, REGISTERS};

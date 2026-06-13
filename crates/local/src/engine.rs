@@ -56,7 +56,7 @@ impl Engine {
         tracing::info!(
             model = which.display_name(),
             elapsed_ms = started.elapsed().as_millis() as u64,
-            "muse-local: model loaded"
+            "daisynotes-local: model loaded"
         );
         Ok(Engine {
             backend,
@@ -112,7 +112,7 @@ impl Engine {
             match self.model.token_to_piece_bytes(token, 64, false, None) {
                 Ok(bytes) => out_bytes.extend_from_slice(&bytes),
                 Err(err) => {
-                    tracing::warn!(%err, "muse-local: token decode failed; skipping piece");
+                    tracing::warn!(%err, "daisynotes-local: token decode failed; skipping piece");
                 }
             }
             batch.clear();
@@ -133,7 +133,7 @@ impl Engine {
             prompt_tokens = tokens.len(),
             generated_chars = text.len(),
             elapsed_ms = started.elapsed().as_millis() as u64,
-            "muse-local: generation complete"
+            "daisynotes-local: generation complete"
         );
         Ok(text)
     }
@@ -171,6 +171,6 @@ fn init_backend() -> Result<LlamaBackend, LocalError> {
 }
 
 fn engine_err(what: &str, err: &dyn std::fmt::Display) -> LocalError {
-    tracing::warn!(%err, "muse-local: {what}");
+    tracing::warn!(%err, "daisynotes-local: {what}");
     LocalError::Engine(format!("{what}: {err}"))
 }

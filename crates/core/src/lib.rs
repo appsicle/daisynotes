@@ -1,4 +1,4 @@
-//! muse-core — the document model: rope text, style spans, ops, undo, anchors.
+//! daisynotes-core — the document model: rope text, style spans, ops, undo, anchors.
 //! Owns the words. Knows nothing about pixels, persistence, or the network.
 //!
 //! All offsets in the public API are **global byte offsets** into the UTF-8

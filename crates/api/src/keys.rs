@@ -1,14 +1,14 @@
 //! API-key resolution and storage.
 //!
 //! Resolution order: `ANTHROPIC_API_KEY` environment variable, then the macOS
-//! Keychain (service `muse-anthropic`) via the `security` CLI. Lookup happens
+//! Keychain (service `daisynotes-anthropic`) via the `security` CLI. Lookup happens
 //! per request inside the worker, so a key added after launch is picked up
 //! without restarting the app.
 
 use std::process::Command;
 
 /// Keychain service name under which Muse stores the Anthropic key.
-const KEYCHAIN_SERVICE: &str = "muse-anthropic";
+const KEYCHAIN_SERVICE: &str = "daisynotes-anthropic";
 
 /// Keychain account name used by [`store_api_key`].
 const KEYCHAIN_ACCOUNT: &str = "muse";
@@ -16,7 +16,7 @@ const KEYCHAIN_ACCOUNT: &str = "muse";
 /// Resolves the Anthropic API key.
 ///
 /// Checks the `ANTHROPIC_API_KEY` environment variable first, then the macOS
-/// Keychain (`security find-generic-password -s muse-anthropic -w`). Output
+/// Keychain (`security find-generic-password -s daisynotes-anthropic -w`). Output
 /// is trimmed; empty values are treated as absent.
 pub fn resolve_api_key() -> Option<String> {
     if let Ok(value) = std::env::var("ANTHROPIC_API_KEY")
@@ -27,8 +27,8 @@ pub fn resolve_api_key() -> Option<String> {
     keychain_lookup()
 }
 
-/// Stores `key` in the macOS Keychain under the `muse-anthropic` service
-/// (`security add-generic-password -U -s muse-anthropic -a muse -w <key>`),
+/// Stores `key` in the macOS Keychain under the `daisynotes-anthropic` service
+/// (`security add-generic-password -U -s daisynotes-anthropic -a muse -w <key>`),
 /// updating any existing entry. Returns `true` on success.
 pub fn store_api_key(key: &str) -> bool {
     let stored = Command::new("security")
@@ -45,7 +45,7 @@ pub fn store_api_key(key: &str) -> bool {
         .output()
         .is_ok_and(|output| output.status.success());
     if !stored {
-        tracing::warn!("muse-api: failed to store key in the keychain");
+        tracing::warn!("daisynotes-api: failed to store key in the keychain");
     }
     stored
 }

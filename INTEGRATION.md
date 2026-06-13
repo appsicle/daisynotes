@@ -6,14 +6,14 @@ conflicts with memory of the crates, READ THE CRATE SOURCE — it is the truth.
 
 ## Startup sequence (main.rs)
 
-1. `tracing_subscriber` init (file appender under `muse_storage::data_dir()/logs` or stderr; keep simple, env-filter).
-2. `Application::new().with_assets(muse_ui::assets::MuseAssets)` — REQUIRED or `svg().path("icons/…")` fails.
-3. Inside `run`: `cx.text_system().add_fonts(muse_ui::fonts::all())` BEFORE any window — fonts must exist before first frame (no-shift doctrine). NOTE: the Quattro family registers as **"iA Writer Quattro V"** (theme const already corrected).
-4. Open `muse_storage::Store::open_default()`. Read settings: `appearance` ("paper"/"dusk", default paper), `chattiness`, `muse_muted`, `consent`.
-5. `cx.set_global(muse_theme::Theme::new(appearance))` BEFORE any view renders — `cx.theme()` panics otherwise.
-6. `cx.bind_keys(muse_commands::keybindings())`, `cx.set_menus(muse_commands::app_menus())`.
-7. `muse_api::spawn()` → ApiHandle (cheap, do it at startup; requests resolve the key per-call, so a key added later works after relaunch only — fine).
-8. Open window: `WindowOptions { titlebar: Some(TitlebarOptions { title: "Muse", appears_transparent: true, traffic_light_position: Some(point(px(12.), px(18.))) }), window_bounds: centered 1100×760, window_min_size if the field exists (verify in gpui source; target 720×480), ..Default }`.
+1. `tracing_subscriber` init (file appender under `daisynotes_storage::data_dir()/logs` or stderr; keep simple, env-filter).
+2. `Application::new().with_assets(daisynotes_ui::assets::DaisyNotesAssets)` — REQUIRED or `svg().path("icons/…")` fails.
+3. Inside `run`: `cx.text_system().add_fonts(daisynotes_ui::fonts::all())` BEFORE any window — fonts must exist before first frame (no-shift doctrine). NOTE: the Quattro family registers as **"iA Writer Quattro V"** (theme const already corrected).
+4. Open `daisynotes_storage::Store::open_default()`. Read settings: `appearance` ("paper"/"dusk", default paper), `chattiness`, `muse_muted`, `consent`.
+5. `cx.set_global(daisynotes_theme::Theme::new(appearance))` BEFORE any view renders — `cx.theme()` panics otherwise.
+6. `cx.bind_keys(daisynotes_commands::keybindings())`, `cx.set_menus(daisynotes_commands::app_menus())`.
+7. `daisynotes_api::spawn()` → ApiHandle (cheap, do it at startup; requests resolve the key per-call, so a key added later works after relaunch only — fine).
+8. Open window: `WindowOptions { titlebar: Some(TitlebarOptions { title: "Daisy Notes", appears_transparent: true, traffic_light_position: Some(point(px(12.), px(18.))) }), window_bounds: centered 1100×760, window_min_size if the field exists (verify in gpui source; target 720×480), ..Default }`.
 9. Root entity: `Workspace`. `cx.activate(true)`.
 10. `cx.on_app_quit` (verify exact API) → flush pending autosave synchronously.
 
@@ -23,7 +23,7 @@ State: `store: Arc<Store>` (or Rc — single-threaded use; Store is Send+Sync, A
 `api: ApiHandle`, `editor: Entity<Editor>`, `sidebar: Entity<Sidebar>`, `topbar: Entity<Topbar>`,
 `entries_open: bool` + sidebar width animation state, theme crossfade animation state,
 `current_entry: String` (ulid string), autosave state (dirty flag + debounce generation),
-`engines: HashMap<String, muse_agent::TriggerEngine>`, `notes: Vec<muse_agent::NoteRecord>` (active entry),
+`engines: HashMap<String, daisynotes_agent::TriggerEngine>`, `notes: Vec<daisynotes_agent::NoteRecord>` (active entry),
 `next_note_id: u64`, `muted: bool`, `chattiness: Chattiness`, `consented: bool`,
 toast state (enum: None | Plain{msg} | Undo{msg, entry_id}, with auto-dismiss generation).
 
@@ -69,7 +69,7 @@ Call `topbar.set_appearance(target)`.
 
 ### Topbar event wiring
 
-- `SetFamily(f)` → dispatch `muse_commands::SetFamily { family: index }` to the editor (or call through an editor action dispatch on the window — the editor handles the action; verify focus is on editor or dispatch directly via `window.dispatch_action` while editor focused; if the popover holds focus, dispatching may miss the editor — SAFEST: the workspace handles TopbarEvent by directly updating through the editor entity: `editor.update(cx, |e, cx| ...)` — but Editor has no public set_voice. Therefore: dispatch the gpui action TO THE EDITOR'S FOCUS via `window.dispatch_action(...)` after focusing the editor, or better, verify whether `dispatch_action` routes to focused element — the popover holds focus while open! Pragmatic decision: on TopbarEvent, call `window.focus(&editor.focus_handle)` first, then `window.dispatch_action(Box::new(action), cx)`. The popover stays open per its design (it re-takes focus? it won't — accept that arrow: clicking a font row applies the change; popover may lose Escape-focus afterward but remains dismissible by click-away. Note whatever you observe in the report.)
+- `SetFamily(f)` → dispatch `daisynotes_commands::SetFamily { family: index }` to the editor (or call through an editor action dispatch on the window — the editor handles the action; verify focus is on editor or dispatch directly via `window.dispatch_action` while editor focused; if the popover holds focus, dispatching may miss the editor — SAFEST: the workspace handles TopbarEvent by directly updating through the editor entity: `editor.update(cx, |e, cx| ...)` — but Editor has no public set_voice. Therefore: dispatch the gpui action TO THE EDITOR'S FOCUS via `window.dispatch_action(...)` after focusing the editor, or better, verify whether `dispatch_action` routes to focused element — the popover holds focus while open! Pragmatic decision: on TopbarEvent, call `window.focus(&editor.focus_handle)` first, then `window.dispatch_action(Box::new(action), cx)`. The popover stays open per its design (it re-takes focus? it won't — accept that arrow: clicking a font row applies the change; popover may lose Escape-focus afterward but remains dismissible by click-away. Note whatever you observe in the report.)
 - `SetSize(s)` → compare with `editor.read(cx).voice().size`: greater → dispatch `IncreaseSize`, smaller → `DecreaseSize`, equal → ignore.
 - `SetWeight(w)` → dispatch `SetWeight { weight: w }`.
 

@@ -1,7 +1,7 @@
 //! A 1px hairline divider.
 
 use gpui::{App, Window, div, prelude::*, px};
-use muse_theme::ActiveTheme;
+use daisynotes_theme::ActiveTheme;
 
 /// A hairline rule, horizontal by default.
 #[derive(IntoElement)]

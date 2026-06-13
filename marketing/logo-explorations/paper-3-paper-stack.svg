@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg3" x1="120" y1="80" x2="900" y2="960" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EFF0EC"/>
+      <stop offset="1" stop-color="#C7C8C2"/>
+    </linearGradient>
+    <linearGradient id="paper3" x1="312" y1="192" x2="718" y2="828" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FBFAF6"/>
+      <stop offset=".68" stop-color="#F7F5F0"/>
+      <stop offset="1" stop-color="#E9E6DF"/>
+    </linearGradient>
+    <filter id="shadow3" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="34" stdDeviation="28" flood-color="#2B2B29" flood-opacity=".28"/>
+    </filter>
+    <filter id="blur3" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" rx="225" fill="url(#bg3)"/>
+  <ellipse cx="526" cy="812" rx="275" ry="54" fill="#2B2B29" opacity=".12" filter="url(#blur3)"/>
+  <g transform="rotate(-4 512 512)" filter="url(#shadow3)">
+    <path d="M326 236h428c20 0 36 16 36 36v518c0 20-16 36-36 36H326c-20 0-36-16-36-36V272c0-20 16-36 36-36z" fill="#D8D5CE" opacity=".7"/>
+    <path d="M304 218h428c20 0 36 16 36 36v518c0 20-16 36-36 36H304c-20 0-36-16-36-36V254c0-20 16-36 36-36z" fill="#E7E4DD"/>
+    <path d="M282 195h428c22 0 40 18 40 40v516c0 22-18 40-40 40H282c-22 0-40-18-40-40V235c0-22 18-40 40-40z" fill="url(#paper3)"/>
+    <path d="M264 764c126 16 320 18 464-2-6 17-22 29-40 29H282c-8 0-14-1-20-4z" fill="#D6D2CA" opacity=".42"/>
+    <path d="M282 195h428c22 0 40 18 40 40v25c-145-18-310-14-508 11v-36c0-22 18-40 40-40z" fill="#FFFFFF" opacity=".3"/>
+    <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M345 382c38-16 75 18 113 8 43-12 74-22 116 0 35 18 69 11 100-7" stroke="#6F6E69" stroke-width="19" opacity=".58"/>
+      <path d="M340 474c37 13 70-12 105-6 37 7 66 25 105 8 34-15 68-14 101 5" stroke="#9A9A94" stroke-width="18" opacity=".66"/>
+      <path d="M356 562c34-13 67-1 101 15 37 18 72-18 112-6 28 8 55 9 82-5" stroke="#B4B3AD" stroke-width="17" opacity=".76"/>
+      <path d="M378 650c27 8 54-5 83-2 25 3 45 14 75 3" stroke="#8F8E89" stroke-width="15" opacity=".54"/>
+    </g>
+  </g>
+</svg>

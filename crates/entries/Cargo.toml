@@ -1,5 +1,5 @@
 [package]
-name = "muse-entries"
+name = "daisynotes-entries"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,9 +9,9 @@ workspace = true
 
 [dependencies]
 gpui.workspace = true
-muse-core.workspace = true
-muse-storage.workspace = true
-muse-theme.workspace = true
-muse-ui.workspace = true
-muse-commands.workspace = true
+daisynotes-core.workspace = true
+daisynotes-storage.workspace = true
+daisynotes-theme.workspace = true
+daisynotes-ui.workspace = true
+daisynotes-commands.workspace = true
 jiff.workspace = true

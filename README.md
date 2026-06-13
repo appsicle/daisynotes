@@ -1,8 +1,8 @@
-# Muse
+# Daisy Notes
 
 A quiet place to write, with a friend in the margin.
 
-Muse is a native macOS writing app — Rust + [GPUI](https://www.gpui.rs) (Zed's
+Daisy Notes is a native macOS writing app — Rust + [GPUI](https://www.gpui.rs) (Zed's
 GPU-accelerated UI framework) — with a companion who reads alongside you and,
 when there's genuinely something to say, leaves a small note pinned to your
 exact words or an iMessage-style reaction on the line that earned it.
@@ -16,16 +16,16 @@ exact words or an iMessage-style reaction on the line that earned it.
 ## Develop
 
 ```sh
-cargo run            # debug build, logs to /tmp/muse-debug.log
+cargo run            # debug build, logs to /tmp/daisynotes-debug.log
 cargo test           # ~240 tests across 12 crates
 cargo clippy --workspace --all-targets
-MUSE_LOCAL_E2E=1 cargo test -p muse-local --test e2e -- --ignored   # real on-device generation (needs a downloaded model)
+DAISYNOTES_LOCAL_E2E=1 cargo test -p daisynotes-local --test e2e -- --ignored   # real on-device generation (needs a downloaded model)
 ```
 
 ## Ship
 
 ```sh
-scripts/package.sh   # release build → dist/Muse.app + Muse.dmg + Muse.zip
+scripts/package.sh   # release build → dist/DaisyNotes.app + DaisyNotes.dmg + DaisyNotes.zip
 ```
 
 The script assembles the bundle (Info.plist + icns rendered by
@@ -34,9 +34,9 @@ notarization-shaped zip. For distribution beyond your own machines, replace
 the ad-hoc signature with a Developer ID certificate and notarize:
 
 ```sh
-codesign --force --deep --options runtime --sign "Developer ID Application: …" dist/Muse.app
-xcrun notarytool submit dist/Muse.zip --keychain-profile … --wait
-xcrun stapler staple dist/Muse.app
+codesign --force --deep --options runtime --sign "Developer ID Application: …" dist/DaisyNotes.app
+xcrun notarytool submit dist/DaisyNotes.zip --keychain-profile … --wait
+xcrun stapler staple dist/DaisyNotes.app
 ```
 
 ## Layout

@@ -1,16 +1,16 @@
 #!/bin/bash
-# Package Muse as a shippable macOS app: release build → Muse.app bundle
+# Package Daisy Notes as a shippable macOS app: release build → DaisyNotes.app bundle
 # (Info.plist, icns) → ad-hoc codesign → notarization-shaped zip + DMG.
 #
 # Usage: scripts/package.sh [--skip-build]
-# Output: dist/Muse.app, dist/Muse.dmg, dist/Muse.zip
+# Output: dist/DaisyNotes.app, dist/DaisyNotes.dmg, dist/DaisyNotes.zip
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
 DIST=dist
-APP="$DIST/Muse.app"
+APP="$DIST/DaisyNotes.app"
 
 if [[ "${1:-}" != "--skip-build" ]]; then
   echo "── building release binary ──"
@@ -18,29 +18,29 @@ if [[ "${1:-}" != "--skip-build" ]]; then
 fi
 
 echo "── assembling bundle ──"
-rm -rf "$APP" "$DIST/Muse.dmg" "$DIST/Muse.zip"
+rm -rf "$APP" "$DIST/DaisyNotes.dmg" "$DIST/DaisyNotes.zip"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-cp target/release/muse "$APP/Contents/MacOS/Muse"
+cp target/release/daisynotes "$APP/Contents/MacOS/DaisyNotes"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key>               <string>Muse</string>
-  <key>CFBundleDisplayName</key>        <string>Muse</string>
-  <key>CFBundleIdentifier</key>         <string>com.muse.editor</string>
+  <key>CFBundleName</key>               <string>Daisy Notes</string>
+  <key>CFBundleDisplayName</key>        <string>Daisy Notes</string>
+  <key>CFBundleIdentifier</key>         <string>com.daisynotes.editor</string>
   <key>CFBundleVersion</key>            <string>${VERSION}</string>
   <key>CFBundleShortVersionString</key> <string>${VERSION}</string>
-  <key>CFBundleExecutable</key>         <string>Muse</string>
-  <key>CFBundleIconFile</key>           <string>Muse</string>
+  <key>CFBundleExecutable</key>         <string>DaisyNotes</string>
+  <key>CFBundleIconFile</key>           <string>DaisyNotes</string>
   <key>CFBundlePackageType</key>        <string>APPL</string>
   <key>LSMinimumSystemVersion</key>     <string>13.0</string>
   <key>LSApplicationCategoryType</key>  <string>public.app-category.productivity</string>
   <key>NSHighResolutionCapable</key>    <true/>
   <key>NSSupportsAutomaticGraphicsSwitching</key> <true/>
-  <key>NSHumanReadableCopyright</key>   <string>© 2026 Muse</string>
+  <key>NSHumanReadableCopyright</key>   <string>© 2026 Daisy Notes</string>
 </dict>
 </plist>
 PLIST
@@ -48,7 +48,7 @@ PLIST
 echo "── rendering icon ──"
 ICON_TMP=$(mktemp -d)
 swift scripts/make-icon.swift "$ICON_TMP"
-iconutil -c icns "$ICON_TMP/Muse.iconset" -o "$APP/Contents/Resources/Muse.icns"
+iconutil -c icns "$ICON_TMP/DaisyNotes.iconset" -o "$APP/Contents/Resources/DaisyNotes.icns"
 rm -rf "$ICON_TMP"
 
 # Sign with Developer ID when one is in the keychain (hardened runtime,
@@ -65,20 +65,20 @@ fi
 codesign --verify --strict "$APP"
 
 # Notarize + staple when credentials are stored (one-time:
-#   xcrun notarytool store-credentials muse-notary --apple-id … --team-id … --password …)
-if [[ -n "$IDENTITY" ]] && xcrun notarytool history --keychain-profile muse-notary >/dev/null 2>&1; then
+#   xcrun notarytool store-credentials daisynotes-notary --apple-id … --team-id … --password …)
+if [[ -n "$IDENTITY" ]] && xcrun notarytool history --keychain-profile daisynotes-notary >/dev/null 2>&1; then
   echo "── notarizing ──"
-  ditto -c -k --keepParent "$APP" "$DIST/Muse-notarize.zip"
-  xcrun notarytool submit "$DIST/Muse-notarize.zip" --keychain-profile muse-notary --wait
+  ditto -c -k --keepParent "$APP" "$DIST/DaisyNotes-notarize.zip"
+  xcrun notarytool submit "$DIST/DaisyNotes-notarize.zip" --keychain-profile daisynotes-notary --wait
   xcrun stapler staple "$APP"
-  rm -f "$DIST/Muse-notarize.zip"
+  rm -f "$DIST/DaisyNotes-notarize.zip"
 fi
 
 echo "── archiving ──"
-ditto -c -k --keepParent "$APP" "$DIST/Muse.zip"
+ditto -c -k --keepParent "$APP" "$DIST/DaisyNotes.zip"
 
-# The installer DMG: Muse.app beside /Applications on the styled paper
-# background (rose arrow, "drag Muse into Applications"). The app is baked
+# The installer DMG: DaisyNotes.app beside /Applications on the styled paper
+# background (glossy blue arrow, "Drag Daisy Notes into Applications"). The app is baked
 # in at image-creation time (macOS 26 denies copying bundles onto mounted
 # images), then style-dmg.py writes the .DS_Store onto the mounted volume.
 STAGE=$(mktemp -d)
@@ -86,8 +86,8 @@ cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 swift scripts/make-dmg-background.swift "$STAGE/.background.png"
 
-RW=$(mktemp -d)/Muse-rw.dmg
-hdiutil create -volname "Muse" -srcfolder "$STAGE" -ov -format UDRW -quiet "$RW"
+RW=$(mktemp -d)/DaisyNotes-rw.dmg
+hdiutil create -volname "Daisy Notes" -srcfolder "$STAGE" -ov -format UDRW -quiet "$RW"
 MOUNT=$(hdiutil attach "$RW" -readwrite -noverify -noautoopen | grep -o '/Volumes/.*')
 
 # ds_store + mac_alias live in the dmgbuild pipx venv (pipx install dmgbuild).
@@ -100,9 +100,18 @@ fi
 
 sync
 hdiutil detach "$MOUNT" -quiet
-hdiutil convert "$RW" -format UDZO -o "$DIST/Muse.dmg" -ov -quiet
+hdiutil convert "$RW" -format UDZO -o "$DIST/DaisyNotes.dmg" -ov -quiet
 rm -rf "$STAGE" "$(dirname "$RW")"
+
+# Staple the DMG itself: the app inside is already notarized, but notarizing
+# the final image and attaching its own ticket lets the downloaded .dmg clear
+# Gatekeeper offline (no round-trip to Apple on first open).
+if [[ -n "$IDENTITY" ]] && xcrun notarytool history --keychain-profile daisynotes-notary >/dev/null 2>&1; then
+  echo "── notarizing dmg ──"
+  xcrun notarytool submit "$DIST/DaisyNotes.dmg" --keychain-profile daisynotes-notary --wait
+  xcrun stapler staple "$DIST/DaisyNotes.dmg"
+fi
 
 echo
 echo "shipped:"
-du -sh "$APP" "$DIST/Muse.dmg" "$DIST/Muse.zip"
+du -sh "$APP" "$DIST/DaisyNotes.dmg" "$DIST/DaisyNotes.zip"

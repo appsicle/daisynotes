@@ -18,6 +18,10 @@ static ICONS: &[(&str, &[u8])] = &[
         include_bytes!("../../../assets/icons/check.svg"),
     ),
     (
+        "icons/chevron-down.svg",
+        include_bytes!("../../../assets/icons/chevron-down.svg"),
+    ),
+    (
         "icons/cloud-off.svg",
         include_bytes!("../../../assets/icons/cloud-off.svg"),
     ),
@@ -54,14 +58,20 @@ static ICONS: &[(&str, &[u8])] = &[
         include_bytes!("../../../assets/icons/undo-2.svg"),
     ),
     ("icons/x.svg", include_bytes!("../../../assets/icons/x.svg")),
+    // The full-color app mark (raster — rendered via `img`, not the SVG mask
+    // path, so it keeps its color instead of being tinted monochrome).
+    (
+        "icons/daisynotes-mark.png",
+        include_bytes!("../../../assets/icons/daisynotes-mark.png"),
+    ),
 ];
 
 /// The app's asset source. Register at startup with
-/// `gpui::Application::new().with_assets(MuseAssets)`.
+/// `gpui::Application::new().with_assets(DaisyNotesAssets)`.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct MuseAssets;
+pub struct DaisyNotesAssets;
 
-impl AssetSource for MuseAssets {
+impl AssetSource for DaisyNotesAssets {
     fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {
         Ok(ICONS
             .iter()
@@ -85,7 +95,7 @@ mod tests {
     #[test]
     fn loads_every_embedded_icon() {
         for &(name, bytes) in ICONS {
-            let loaded = MuseAssets.load(name);
+            let loaded = DaisyNotesAssets.load(name);
             assert!(
                 matches!(loaded, Ok(Some(ref data)) if data.as_ref() == bytes),
                 "failed to load {name}"
@@ -95,15 +105,15 @@ mod tests {
 
     #[test]
     fn unknown_paths_load_as_none() {
-        assert!(matches!(MuseAssets.load("icons/missing.svg"), Ok(None)));
-        assert!(matches!(MuseAssets.load(""), Ok(None)));
+        assert!(matches!(DaisyNotesAssets.load("icons/missing.svg"), Ok(None)));
+        assert!(matches!(DaisyNotesAssets.load(""), Ok(None)));
     }
 
     #[test]
     fn lists_icons_under_prefix() {
-        let listed = MuseAssets.list("icons/");
+        let listed = DaisyNotesAssets.list("icons/");
         assert!(matches!(&listed, Ok(names) if names.len() == ICONS.len()));
-        assert!(matches!(MuseAssets.list("fonts/"), Ok(names) if names.is_empty()));
+        assert!(matches!(DaisyNotesAssets.list("fonts/"), Ok(names) if names.is_empty()));
     }
 
     #[test]

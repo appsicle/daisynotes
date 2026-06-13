@@ -6,7 +6,7 @@
 //! `<start_of_turn>user\n…<end_of_turn>\n<start_of_turn>model\n` (the `<bos>`
 //! token is added by the tokenizer, not by us).
 
-use muse_api::{ClaudeRequest, Role};
+use daisynotes_api::{ClaudeRequest, Role};
 
 /// Soft cap on prompt size in characters. Gemma's tokenizer averages well
 /// over 3 chars/token on English prose, so ~24k chars stays comfortably
@@ -110,7 +110,7 @@ pub fn truncate_entry_middle(content: &str, budget: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use muse_api::ChatMessage;
+    use daisynotes_api::ChatMessage;
 
     fn request(system: &str, user: &str) -> ClaudeRequest {
         ClaudeRequest {

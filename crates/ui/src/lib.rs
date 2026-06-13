@@ -1,10 +1,10 @@
-//! muse-ui — shared primitives: buttons, popovers, toasts, icons, springs.
+//! daisynotes-ui — shared primitives: buttons, popovers, toasts, icons, springs.
 //! The visual vocabulary every other UI crate speaks.
 //!
 //! Everything here is generic chrome: theme-driven (via
-//! [`muse_theme::ActiveTheme`]), free of hardcoded colors, and ignorant of
+//! [`daisynotes_theme::ActiveTheme`]), free of hardcoded colors, and ignorant of
 //! editors, entries, and the agent. This crate also embeds the app's static
-//! assets — Lucide icons (served through [`assets::MuseAssets`]) and the
+//! assets — Lucide icons (served through [`assets::DaisyNotesAssets`]) and the
 //! four bundled content font families ([`fonts::all`]).
 
 pub mod assets;

@@ -10,15 +10,15 @@ use gpui::{
     Animation, AnimationExt as _, AnyElement, ClickEvent, Context, ElementId, Entity,
     Focusable as _, SharedString, Window, div, prelude::*, px,
 };
-use muse_agent::Chattiness;
-use muse_local::{DownloadState, LocalModel};
-use muse_commands as cmd;
-use muse_theme::{
+use daisynotes_agent::Chattiness;
+use daisynotes_local::{DownloadState, LocalModel};
+use daisynotes_commands as cmd;
+use daisynotes_theme::{
     ActiveTheme as _, Appearance, ThemePair, derive_tokens, fonts, hex_from_hsla, hsla_from_hex,
     layout,
 };
-use muse_topbar::OrbState;
-use muse_ui::{IconName, TextField, icon, icon_button, soft_shadow, text_button};
+use daisynotes_topbar::OrbState;
+use daisynotes_ui::{IconName, TextField, icon, icon_button, soft_shadow, text_button};
 
 use crate::workspace::Workspace;
 
@@ -94,7 +94,7 @@ impl Workspace {
 
     /// A preset swatch was clicked: adopt its pair for both modes.
     fn apply_preset(&mut self, index: usize, cx: &mut Context<Self>) {
-        let presets = muse_theme::presets();
+        let presets = daisynotes_theme::presets();
         let Some(preset) = presets.get(index) else {
             return;
         };
@@ -167,12 +167,12 @@ impl Workspace {
         if key.is_empty() {
             return;
         }
-        if !muse_api::store_api_key(&key) {
+        if !daisynotes_api::store_api_key(&key) {
             self.api_field
                 .update(cx, |field, cx| field.set_invalid(true, cx));
             return;
         }
-        self.key_missing = muse_api::resolve_api_key().is_none();
+        self.key_missing = daisynotes_api::resolve_api_key().is_none();
         self.api_field.update(cx, |field, cx| field.set_value("", cx));
         if !self.key_missing && !self.muted {
             self.topbar
@@ -355,7 +355,7 @@ impl Workspace {
     fn render_preset_section(&self, cx: &mut Context<Self>) -> AnyElement {
         let tokens = cx.theme().tokens;
         let appearance = cx.theme().appearance;
-        let presets = muse_theme::presets();
+        let presets = daisynotes_theme::presets();
         let current_name = presets
             .iter()
             .find(|preset| preset.pair() == self.theme_pair)
@@ -588,7 +588,7 @@ impl Workspace {
             LocalModel::Standard => ("local-standard-download", "local-standard-retry"),
         };
 
-        let installed = muse_local::model_path(model).is_file();
+        let installed = daisynotes_local::model_path(model).is_file();
         let right: AnyElement = if installed {
             div()
                 .flex()
@@ -784,7 +784,7 @@ impl Workspace {
 }
 
 /// A small two-tone disk previewing a palette: background disk, accent core.
-fn swatch(tokens: muse_theme::Tokens) -> gpui::Div {
+fn swatch(tokens: daisynotes_theme::Tokens) -> gpui::Div {
     div()
         .flex_none()
         .size(px(16.))

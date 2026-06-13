@@ -1,5 +1,5 @@
 [package]
-name = "muse-commands"
+name = "daisynotes-commands"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

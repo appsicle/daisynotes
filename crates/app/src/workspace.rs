@@ -15,18 +15,18 @@ use gpui::{
     Animation, AnimationExt as _, AnyElement, ClickEvent, Context, ElementId, Entity,
     Focusable as _, SharedString, Subscription, Task, Window, div, prelude::*, px,
 };
-use muse_agent::{Chattiness, NoteRecord, TriggerEngine};
-use muse_api::ApiHandle;
-use muse_commands as cmd;
-use muse_core::Document;
-use muse_editor::{Editor, EditorEvent};
-use muse_entries::{Sidebar, SidebarEvent};
-use muse_storage::Store;
-use muse_theme::{
+use daisynotes_agent::{Chattiness, NoteRecord, TriggerEngine};
+use daisynotes_api::ApiHandle;
+use daisynotes_commands as cmd;
+use daisynotes_core::Document;
+use daisynotes_editor::{Editor, EditorEvent};
+use daisynotes_entries::{Sidebar, SidebarEvent};
+use daisynotes_storage::Store;
+use daisynotes_theme::{
     ActiveTheme as _, Appearance, FONT_UI, Theme, ThemePair, Tokens, layout, lerp_tokens, motion,
 };
-use muse_topbar::Topbar;
-use muse_ui::{TextField, pill, text_button};
+use daisynotes_topbar::Topbar;
+use daisynotes_ui::{TextField, pill, text_button};
 use ulid::Ulid;
 
 use crate::persistence::{Boot, date_label};
@@ -64,7 +64,7 @@ pub struct Workspace {
     pub(crate) api: ApiHandle,
     /// The on-device brain. Spawning is cheap; the model loads lazily inside
     /// the crate on first request.
-    pub(crate) local: muse_local::LocalHandle,
+    pub(crate) local: daisynotes_local::LocalHandle,
     pub(crate) editor: Entity<Editor>,
     pub(crate) sidebar: Entity<Sidebar>,
     pub(crate) topbar: Entity<Topbar>,
@@ -165,7 +165,7 @@ impl Workspace {
 
         // Key resolution is a quick sync check (env, then Keychain); a key
         // saved in Settings re-resolves without a relaunch.
-        let key_missing = muse_api::resolve_api_key().is_none();
+        let key_missing = daisynotes_api::resolve_api_key().is_none();
 
         let custom_fields = [
             cx.new(|cx| TextField::new(window, cx, "#B86450")),
@@ -180,7 +180,7 @@ impl Workspace {
         let mut this = Workspace {
             store,
             api,
-            local: muse_local::spawn(),
+            local: daisynotes_local::spawn(),
             editor,
             sidebar,
             topbar,
@@ -229,9 +229,9 @@ impl Workspace {
         // quietly start fetching the light model in the background. By the
         // time the first entry has a few paragraphs, Muse can think — no
         // setup screen, no download button, no fanfare.
-        if this.key_missing && muse_local::installed_model().is_none() {
+        if this.key_missing && daisynotes_local::installed_model().is_none() {
             tracing::info!("no brain available; auto-downloading the light on-device model");
-            this.local.start_download(muse_local::LocalModel::Light);
+            this.local.start_download(daisynotes_local::LocalModel::Light);
         }
 
         let muted = this.muted;
@@ -496,7 +496,7 @@ impl Workspace {
     }
 
     fn act_about(&mut self, _: &cmd::About, _window: &mut Window, _cx: &mut Context<Self>) {
-        tracing::info!("Muse {}", env!("CARGO_PKG_VERSION"));
+        tracing::info!("Daisy Notes {}", env!("CARGO_PKG_VERSION"));
     }
 
     /// Workspace-level Escape: only fires when the editor isn't handling

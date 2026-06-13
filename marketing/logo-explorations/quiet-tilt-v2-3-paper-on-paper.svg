@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="qt3-bg" x1="512" y1="0" x2="512" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F1F0EB"/>
+      <stop offset="1" stop-color="#D8D6CF"/>
+    </linearGradient>
+    <linearGradient id="qt3-paper" x1="342" y1="206" x2="706" y2="812" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFEFA"/>
+      <stop offset="0.48" stop-color="#F7F5EF"/>
+      <stop offset="1" stop-color="#E7E4DC"/>
+    </linearGradient>
+    <linearGradient id="qt3-edge" x1="512" y1="188" x2="512" y2="828" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F6F4EE"/>
+      <stop offset="1" stop-color="#CBC8BF"/>
+    </linearGradient>
+    <linearGradient id="qt3-topHi" x1="316" y1="216" x2="720" y2="216" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="0.18" stop-color="#FFFFFF" stop-opacity="0.7"/>
+      <stop offset="0.75" stop-color="#FFFFFF" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="qt3-ao" x1="512" y1="726" x2="512" y2="806" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#62625D" stop-opacity="0"/>
+      <stop offset="1" stop-color="#62625D" stop-opacity="0.16"/>
+    </linearGradient>
+    <linearGradient id="qt3-lineA" x1="350" y1="398" x2="674" y2="398" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6F706A" stop-opacity="0.08"/>
+      <stop offset="0.12" stop-color="#686963" stop-opacity="0.72"/>
+      <stop offset="0.52" stop-color="#5F605A" stop-opacity="0.88"/>
+      <stop offset="0.88" stop-color="#70716B" stop-opacity="0.68"/>
+      <stop offset="1" stop-color="#7A7B75" stop-opacity="0.06"/>
+    </linearGradient>
+    <linearGradient id="qt3-lineB" x1="350" y1="512" x2="686" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8C8C86" stop-opacity="0.06"/>
+      <stop offset="0.13" stop-color="#7C7C76" stop-opacity="0.62"/>
+      <stop offset="0.5" stop-color="#73746E" stop-opacity="0.78"/>
+      <stop offset="0.87" stop-color="#888983" stop-opacity="0.54"/>
+      <stop offset="1" stop-color="#969791" stop-opacity="0.04"/>
+    </linearGradient>
+    <linearGradient id="qt3-lineC" x1="378" y1="620" x2="638" y2="620" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#777872" stop-opacity="0.05"/>
+      <stop offset="0.15" stop-color="#6A6B65" stop-opacity="0.62"/>
+      <stop offset="0.58" stop-color="#62635D" stop-opacity="0.82"/>
+      <stop offset="0.86" stop-color="#7E7F79" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#8C8D87" stop-opacity="0.04"/>
+    </linearGradient>
+    <filter id="qt3-ambient" x="-25%" y="-25%" width="150%" height="160%">
+      <feGaussianBlur stdDeviation="32"/>
+    </filter>
+    <filter id="qt3-contact" x="-12%" y="-10%" width="124%" height="130%">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+    <filter id="qt3-pencilSoft" x="-6%" y="-60%" width="112%" height="220%">
+      <feGaussianBlur stdDeviation="0.75"/>
+    </filter>
+    <filter id="qt3-grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.86" numOctaves="3" seed="31"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.55 0 0 0 0 0.55 0 0 0 0 0.52 0 0 0 0.18 0"/>
+    </filter>
+    <clipPath id="qt3-sheetClip">
+      <path d="M316 192h392c24.3 0 44 19.7 44 44v536c0 24.3-19.7 44-44 44H316c-24.3 0-44-19.7-44-44V236c0-24.3 19.7-44 44-44z"/>
+    </clipPath>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#qt3-bg)"/>
+  <g transform="rotate(-4 512 496)">
+    <path d="M316 192h392c24.3 0 44 19.7 44 44v536c0 24.3-19.7 44-44 44H316c-24.3 0-44-19.7-44-44V236c0-24.3 19.7-44 44-44z" fill="#22231F" opacity="0.14" filter="url(#qt3-ambient)" transform="translate(0 42)"/>
+    <path d="M324 760h376c22 0 39 15 41 34-6 14-20 22-38 22H320c-19 0-34-8-41-22 3-20 21-34 45-34z" fill="#181914" opacity="0.18" filter="url(#qt3-contact)" transform="translate(0 18)"/>
+    <path d="M316 192h392c24.3 0 44 19.7 44 44v536c0 24.3-19.7 44-44 44H316c-24.3 0-44-19.7-44-44V236c0-24.3 19.7-44 44-44z" fill="url(#qt3-edge)"/>
+    <path d="M316 192h392c24.3 0 44 19.7 44 44v525c0 24.3-19.7 44-44 44H316c-24.3 0-44-19.7-44-44V236c0-24.3 19.7-44 44-44z" fill="url(#qt3-paper)"/>
+    <g clip-path="url(#qt3-sheetClip)">
+      <rect x="272" y="192" width="480" height="624" fill="#77786F" opacity="0.045" filter="url(#qt3-grain)"/>
+      <rect x="274" y="726" width="476" height="88" fill="url(#qt3-ao)"/>
+      <path d="M317 205h390c18 0 32 10 37 26" fill="none" stroke="url(#qt3-topHi)" stroke-width="4" stroke-linecap="round"/>
+      <path d="M740 248v502c0 28-16 45-43 45" fill="none" stroke="#B9B6AD" stroke-width="6" stroke-linecap="round" opacity="0.28"/>
+      <path d="M316 804h386c20 0 34-8 42-23" fill="none" stroke="#B9B6AD" stroke-width="7" stroke-linecap="round" opacity="0.3"/>
+    </g>
+    <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M353 394c25-14 45-16 66-3 20 12 35 18 56 7 24-12 43-18 68-3 27 16 50 18 78 2 18-10 35-12 54-4" stroke="#5E5F59" stroke-width="18" opacity="0.08" filter="url(#qt3-pencilSoft)"/>
+      <path d="M353 394c25-14 45-16 66-3 20 12 35 18 56 7 24-12 43-18 68-3 27 16 50 18 78 2 18-10 35-12 54-4" stroke="url(#qt3-lineA)" stroke-width="16.5"/>
+      <path d="M351 510c27 12 50 11 73-4 21-14 40-18 64-6 28 14 50 14 76-2 24-15 46-17 70-3 18 10 34 13 52 8" stroke="#777872" stroke-width="16" opacity="0.07" filter="url(#qt3-pencilSoft)"/>
+      <path d="M351 510c27 12 50 11 73-4 21-14 40-18 64-6 28 14 50 14 76-2 24-15 46-17 70-3 18 10 34 13 52 8" stroke="url(#qt3-lineB)" stroke-width="14.5"/>
+      <path d="M380 620c22-8 42-5 62 8 21 13 42 15 65 2 25-14 48-13 72 1 18 11 38 10 60-2" stroke="#666761" stroke-width="14" opacity="0.07" filter="url(#qt3-pencilSoft)"/>
+      <path d="M380 620c22-8 42-5 62 8 21 13 42 15 65 2 25-14 48-13 72 1 18 11 38 10 60-2" stroke="url(#qt3-lineC)" stroke-width="13"/>
+    </g>
+  </g>
+</svg>

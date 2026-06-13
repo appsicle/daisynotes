@@ -11,7 +11,7 @@ pub(crate) const BLINK_HOLD: Duration = Duration::from_millis(300);
 pub(crate) const BLINK_PERIOD: Duration = Duration::from_millis(1100);
 
 /// Stiffness of the caret spring, chosen so a critically damped system
-/// settles within ~the `muse_theme::motion::CARET` duration (60ms): a
+/// settles within ~the `daisynotes_theme::motion::CARET` duration (60ms): a
 /// critically damped spring reaches 1% of its travel at ω·t ≈ 6.6.
 const OMEGA: f32 = 110.0;
 

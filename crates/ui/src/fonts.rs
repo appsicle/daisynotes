@@ -2,7 +2,7 @@
 //! at compile time as variable TTFs with their italic companions, plus the
 //! Sk-Modernist UI chrome face (Regular-only OTF).
 //!
-//! The app feeds these to `cx.text_system().add_fonts(muse_ui::fonts::all())`
+//! The app feeds these to `cx.text_system().add_fonts(daisynotes_ui::fonts::all())`
 //! before opening the first window, so font-swap layout shift is impossible
 //! by construction (PLAN §8).
 

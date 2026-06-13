@@ -5,7 +5,7 @@
 use std::ops::Range;
 use std::time::Duration;
 
-use muse_core::{InlineStyle, SIZE_STEPS, StyleToggle};
+use daisynotes_core::{InlineStyle, SIZE_STEPS, StyleToggle};
 
 /// Gap between edits after which the open undo group is closed, so a pause
 /// in typing becomes an undo boundary (PLAN §5).
@@ -69,7 +69,7 @@ pub(crate) struct PendingStyle {
 
 impl PendingStyle {
     /// Stage a toggle at a collapsed caret. `base` is the style typing would
-    /// otherwise continue with ([`muse_core::Document::style_for_insertion`]).
+    /// otherwise continue with ([`daisynotes_core::Document::style_for_insertion`]).
     pub fn stage(existing: Option<PendingStyle>, at: usize, base: InlineStyle, toggle: StyleToggle) -> PendingStyle {
         let mut style = match existing {
             Some(pending) if pending.at == at => pending.style,
@@ -102,7 +102,7 @@ impl PendingStyle {
     }
 }
 
-/// Flip one attribute of `style` the way [`muse_core::Document::toggle_style`]
+/// Flip one attribute of `style` the way [`daisynotes_core::Document::toggle_style`]
 /// would for a uniform range.
 fn apply_toggle(style: &mut InlineStyle, toggle: StyleToggle) {
     match toggle {
@@ -143,7 +143,7 @@ fn nearest_step(size: f32) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use muse_core::Ink;
+    use daisynotes_core::Ink;
 
     #[test]
     fn selection_normalizes_both_directions() {

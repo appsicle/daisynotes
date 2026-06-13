@@ -1,11 +1,11 @@
-//! Behavioral tests for `muse_core::Document` through the public API:
+//! Behavioral tests for `daisynotes_core::Document` through the public API:
 //! titles/previews, toggle semantics, undo grouping, anchors, navigation,
 //! and the golden serialization format.
 #![allow(clippy::unwrap_used)]
 
 use std::ops::Range;
 
-use muse_core::{Document, EntryId, FontFamily, Ink, InlineStyle, StyleToggle, Voice};
+use daisynotes_core::{Document, EntryId, FontFamily, Ink, InlineStyle, StyleToggle, Voice};
 
 fn doc() -> Document {
     Document::new(EntryId::new())
@@ -427,18 +427,18 @@ fn from_json_rejects_bad_input() {
         r#"{"v":2,"voice":{"family":"literata","size":16.0,"weight":400},"text":"","spans":[]}"#;
     assert!(matches!(
         Document::from_json(id, newer),
-        Err(muse_core::DocError::UnsupportedVersion(2))
+        Err(daisynotes_core::DocError::UnsupportedVersion(2))
     ));
     // Span beyond the text.
     let bad_span = r#"{"v":1,"voice":{"family":"literata","size":16.0,"weight":400},"text":"ab","spans":[{"start":0,"end":5,"bold":true}]}"#;
     assert!(matches!(
         Document::from_json(id, bad_span),
-        Err(muse_core::DocError::InvalidSpan { .. })
+        Err(daisynotes_core::DocError::InvalidSpan { .. })
     ));
     // Span off a char boundary ('é' is two bytes).
     let misaligned = r#"{"v":1,"voice":{"family":"literata","size":16.0,"weight":400},"text":"é","spans":[{"start":0,"end":1,"bold":true}]}"#;
     assert!(matches!(
         Document::from_json(id, misaligned),
-        Err(muse_core::DocError::InvalidSpan { .. })
+        Err(daisynotes_core::DocError::InvalidSpan { .. })
     ));
 }

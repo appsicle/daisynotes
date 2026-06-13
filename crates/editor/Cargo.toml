@@ -1,5 +1,5 @@
 [package]
-name = "muse-editor"
+name = "daisynotes-editor"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,10 +9,10 @@ workspace = true
 
 [dependencies]
 gpui.workspace = true
-muse-core.workspace = true
-muse-commands.workspace = true
-muse-theme.workspace = true
-muse-ui.workspace = true
+daisynotes-core.workspace = true
+daisynotes-commands.workspace = true
+daisynotes-theme.workspace = true
+daisynotes-ui.workspace = true
 unicode-segmentation.workspace = true
 smallvec.workspace = true
 parking_lot.workspace = true

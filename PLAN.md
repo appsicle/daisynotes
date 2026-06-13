@@ -1,8 +1,8 @@
-# Muse
+# Daisy Notes
 
 *A quiet place to write, with a companion in the margin.*
 
-> Working codename. "Muse" fits the product (the agent **is** the muse, living in the margin) — run a trademark check before shipping. Alternates considered: Marginalia, Vellum, Petal.
+> Shipping name: **Daisy Notes** (domain: daisynotes.app). The in-app companion is still called *the muse* — the agent living in the margin.
 
 ---
 

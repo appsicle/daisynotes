@@ -1,5 +1,5 @@
 [package]
-name = "muse"
+name = "daisynotes"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,22 +8,22 @@ license.workspace = true
 workspace = true
 
 [[bin]]
-name = "muse"
+name = "daisynotes"
 path = "src/main.rs"
 
 [dependencies]
 gpui.workspace = true
-muse-core.workspace = true
-muse-editor.workspace = true
-muse-agent.workspace = true
-muse-commands.workspace = true
-muse-entries.workspace = true
-muse-topbar.workspace = true
-muse-api.workspace = true
-muse-local.workspace = true
-muse-storage.workspace = true
-muse-theme.workspace = true
-muse-ui.workspace = true
+daisynotes-core.workspace = true
+daisynotes-editor.workspace = true
+daisynotes-agent.workspace = true
+daisynotes-commands.workspace = true
+daisynotes-entries.workspace = true
+daisynotes-topbar.workspace = true
+daisynotes-api.workspace = true
+daisynotes-local.workspace = true
+daisynotes-storage.workspace = true
+daisynotes-theme.workspace = true
+daisynotes-ui.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

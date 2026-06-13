@@ -1,5 +1,5 @@
 [package]
-name = "muse-core"
+name = "daisynotes-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

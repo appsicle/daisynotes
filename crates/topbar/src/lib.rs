@@ -1,18 +1,18 @@
-//! muse-topbar — the chrome strip across the top of the window: sidebar
+//! daisynotes-topbar — the chrome strip across the top of the window: sidebar
 //! toggle on the left, a calm empty center, and the right cluster — the
 //! `Aa` voice popover and the theme toggle.
 //!
 //! This crate owns presentation and dispatch only. Sidebar / theme
-//! clicks dispatch `muse-commands` actions for the app to handle; edits
+//! clicks dispatch `daisynotes-commands` actions for the app to handle; edits
 //! made in the `Aa` popover are emitted as [`TopbarEvent`]s for the app to
 //! forward to the editor. It must not know about documents, entries,
 //! storage, or the agent.
 
 use gpui::{Context, EventEmitter, MouseButton, Window, div, prelude::*, px};
-use muse_commands::ToggleSidebar;
-use muse_core::FontFamily;
-use muse_theme::{Appearance, layout};
-use muse_ui::{IconName, icon_button};
+use daisynotes_commands::ToggleSidebar;
+use daisynotes_core::FontFamily;
+use daisynotes_theme::{Appearance, layout};
+use daisynotes_ui::{IconName, icon_button};
 
 /// The agent's state machine, seen from the chrome (PLAN §2). The orb that
 /// once visualized this has been removed; the type remains so the app's
@@ -37,7 +37,7 @@ pub enum TopbarEvent {
     /// A font family row was chosen.
     SetFamily(FontFamily),
     /// The size stepper picked a new base size (always one of
-    /// [`muse_core::SIZE_STEPS`]).
+    /// [`daisynotes_core::SIZE_STEPS`]).
     SetSize(f32),
     /// A weight stop was chosen (300–700).
     SetWeight(u16),

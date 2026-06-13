@@ -1,4 +1,4 @@
-//! muse-entries — the left sidebar: entry list state and soft delete.
+//! daisynotes-entries — the left sidebar: entry list state and soft delete.
 //!
 //! Owns the [`Sidebar`] view: one calm, flat list of entries, most recently
 //! touched first (the caller's order). It renders entirely from state the
@@ -13,11 +13,11 @@ use std::time::Duration;
 
 use gpui::{
     Animation, AnimationExt as _, AnyElement, ClickEvent, Context, EventEmitter, MouseButton,
-    SharedString, Window, div, prelude::*, px, svg,
+    SharedString, Window, div, img, prelude::*, px, svg,
 };
-use muse_storage::EntrySummary;
-use muse_theme::{ActiveTheme as _, layout, motion};
-use muse_ui::{IconName, icon_button};
+use daisynotes_storage::EntrySummary;
+use daisynotes_theme::{ActiveTheme as _, layout, motion};
+use daisynotes_ui::{IconName, icon_button};
 
 /// Top padding above the header row, clearing the inset traffic lights.
 const TOP_PAD: f32 = 46.0;
@@ -193,7 +193,7 @@ impl Sidebar {
                             .icon_size(px(14.))
                             .on_click(|_, window, cx| {
                                 window
-                                    .dispatch_action(Box::new(muse_commands::ToggleSidebar), cx);
+                                    .dispatch_action(Box::new(daisynotes_commands::ToggleSidebar), cx);
                             }),
                     ),
             )
@@ -331,40 +331,20 @@ impl Sidebar {
     fn render_footer(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let tokens = cx.theme().tokens;
         let hover_bg = tokens.hairline.opacity(0.5);
+        // The DaisyNotes mark — the same glossy daisy used for the app icon,
+        // marketing, and installer — sized up and anchored to the bottom left.
         let mut footer = div()
             .flex_none()
-            .h(px(36.))
+            .h(px(44.))
             .px(px(ROW_MARGIN_X))
             .flex()
             .items_center()
             .gap(px(3.))
             .child(
-                div()
-                    .id("sidebar-settings")
-                    .flex()
-                    .items_center()
-                    .gap(px(6.))
-                    .px(px(ROW_PAD_X))
-                    .py(px(4.))
-                    .rounded(px(layout::RADIUS_SM))
-                    .cursor_pointer()
-                    .hover(move |style| style.bg(hover_bg))
-                    .on_click(|_, window, cx| {
-                        window.dispatch_action(Box::new(muse_commands::OpenSettings), cx);
-                    })
-                    .child(
-                        svg()
-                            .flex_none()
-                            .size(px(13.))
-                            .path(IconName::Settings.path())
-                            .text_color(tokens.ink_secondary),
-                    )
-                    .child(
-                        div()
-                            .text_size(px(layout::UI_SMALL))
-                            .text_color(tokens.ink_secondary)
-                            .child("Settings"),
-                    ),
+                img("icons/daisynotes-mark.png")
+                    .flex_none()
+                    .size(px(28.))
+                    .rounded(px(8.)),
             )
             .child(div().flex_1());
         if self.thinking {
@@ -388,8 +368,24 @@ impl Sidebar {
                     ),
                 );
             }
+            footer = footer.child(div().w(px(6.)));
         }
-        footer
+        // "Settings", right-anchored, plain text — no gear icon.
+        footer.child(
+            div()
+                .id("sidebar-settings")
+                .px(px(ROW_PAD_X))
+                .py(px(4.))
+                .rounded(px(layout::RADIUS_SM))
+                .cursor_pointer()
+                .hover(move |style| style.bg(hover_bg))
+                .on_click(|_, window, cx| {
+                    window.dispatch_action(Box::new(daisynotes_commands::OpenSettings), cx);
+                })
+                .text_size(px(layout::UI_SMALL))
+                .text_color(tokens.ink_secondary)
+                .child("Settings"),
+        )
     }
 }
 

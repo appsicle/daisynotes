@@ -150,12 +150,15 @@ pub(crate) struct SnapPara {
     pub line: Option<WrappedLine>,
 }
 
-/// A margin dot as placed by the last layout pass (content coordinates of
-/// its center).
-#[derive(Debug, Clone, Copy)]
+/// An annotation marker as placed by the last layout pass. `center` is the
+/// content-coordinate hover/anchor point; `rects` are the highlighted text
+/// rectangles for a note (empty for a reaction, which is hit by its margin
+/// circle around `center` instead).
+#[derive(Debug, Clone)]
 pub(crate) struct SnapDot {
     pub id: u64,
     pub center: (f32, f32),
+    pub rects: Vec<SelectionRect>,
 }
 
 /// The coda block as placed by the last layout pass.

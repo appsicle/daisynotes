@@ -1,24 +1,24 @@
 //! Optional end-to-end smoke test for the local brain.
 //!
 //! Skipped by default (it needs a downloaded model and real inference):
-//! `MUSE_LOCAL_E2E=1 cargo test -p muse-local -- --ignored`
+//! `DAISYNOTES_LOCAL_E2E=1 cargo test -p daisynotes-local -- --ignored`
 
-use muse_api::{ChatMessage, ClaudeRequest, Role};
+use daisynotes_api::{ChatMessage, ClaudeRequest, Role};
 
 #[test]
-#[ignore = "needs a downloaded model; run with MUSE_LOCAL_E2E=1 -- --ignored"]
+#[ignore = "needs a downloaded model; run with DAISYNOTES_LOCAL_E2E=1 -- --ignored"]
 fn one_real_generation_when_a_model_is_installed() {
-    if std::env::var("MUSE_LOCAL_E2E").as_deref() != Ok("1") {
-        eprintln!("MUSE_LOCAL_E2E not set; skipping");
+    if std::env::var("DAISYNOTES_LOCAL_E2E").as_deref() != Ok("1") {
+        eprintln!("DAISYNOTES_LOCAL_E2E not set; skipping");
         return;
     }
-    let Some(model) = muse_local::installed_model() else {
+    let Some(model) = daisynotes_local::installed_model() else {
         eprintln!("no model installed; skipping");
         return;
     };
     eprintln!("running e2e against {}", model.display_name());
 
-    let handle = muse_local::spawn();
+    let handle = daisynotes_local::spawn();
     let req = ClaudeRequest {
         system: "You live in the margin of someone's notebook. Most of the time you pass."
             .to_string(),

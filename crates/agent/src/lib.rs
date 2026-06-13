@@ -1,4 +1,4 @@
-//! muse-agent — the companion's brain: trigger heuristics, register-aware
+//! daisynotes-agent — the companion's brain: trigger heuristics, register-aware
 //! prompts, decision parsing, quote anchoring, and dismissal memory.
 //!
 //! What this crate owns:

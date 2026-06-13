@@ -20,7 +20,7 @@ const MAX_QUOTE_CHARS: usize = 300;
 /// never an error. Notes are capped at two; notes with empty or over-long
 /// quotes (or empty bodies) are dropped.
 #[must_use]
-pub fn parse_decision(reply: &muse_api::ClaudeReply) -> AgentDecision {
+pub fn parse_decision(reply: &daisynotes_api::ClaudeReply) -> AgentDecision {
     let Some(tool) = reply.tool_name.as_deref() else {
         tracing::warn!(stop_reason = ?reply.stop_reason, "reply carried no tool call");
         return diagnostic_pass("reply carried no tool call");
@@ -170,7 +170,7 @@ fn parse_respond(input: &Value) -> AgentDecision {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use muse_api::ClaudeReply;
+    use daisynotes_api::ClaudeReply;
     use serde_json::json;
 
     fn reply(tool: &str, input: Value) -> ClaudeReply {

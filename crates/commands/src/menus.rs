@@ -9,7 +9,7 @@ use crate::actions::{
     OpenSettings, Redo, SelectAll, Strikethrough, ToggleMuseMuted, ToggleSidebar, ToggleTheme, Underline, Undo,
 };
 
-/// The menu bar for Muse, ready for `gpui::App::set_menus`.
+/// The menu bar for Daisy Notes, ready for `gpui::App::set_menus`.
 ///
 /// The first menu becomes the application menu (macOS titles it with the app
 /// name). Cut/Copy/Paste/Select All/Undo/Redo carry their [`OsAction`] so the
@@ -17,13 +17,13 @@ use crate::actions::{
 pub fn app_menus() -> Vec<Menu> {
     vec![
         Menu {
-            name: "Muse".into(),
+            name: "Daisy Notes".into(),
             items: vec![
-                MenuItem::action("About Muse", About),
+                MenuItem::action("About Daisy Notes", About),
                 MenuItem::separator(),
                 MenuItem::action("Settings…", OpenSettings),
                 MenuItem::separator(),
-                MenuItem::action("Quit Muse", Quit),
+                MenuItem::action("Quit Daisy Notes", Quit),
             ],
         },
         Menu {
@@ -79,7 +79,7 @@ mod tests {
     fn app_menus_builds_with_expected_structure() {
         let menus = app_menus();
         let names: Vec<&str> = menus.iter().map(|menu| menu.name.as_ref()).collect();
-        assert_eq!(names, ["Muse", "File", "Edit", "Format", "View", "Muse"]);
+        assert_eq!(names, ["Daisy Notes", "File", "Edit", "Format", "View", "Muse"]);
 
         let action_count: usize = menus
             .iter()

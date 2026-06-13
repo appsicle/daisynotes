@@ -1,0 +1,59 @@
+# Marketing site → Cloudflare Pages.
+#
+# Builds marketing/ with Vite and deploys it to the `daisynotes` Cloudflare
+# Pages project (custom domain daisynotes.app). Path-filtered: only pushes that
+# touch marketing/ come down this lane — app/source changes go to the desktop
+# release lane (release.yml), which in turn ignores marketing/. A push that
+# touches both fans out to both lanes.
+#
+# One-time setup:
+#   1. Repo → Settings → Secrets and variables → Actions, add:
+#        CLOUDFLARE_API_TOKEN   — a token with the "Cloudflare Pages: Edit" permission
+#        CLOUDFLARE_ACCOUNT_ID  — your Cloudflare account id (Pages overview → right rail)
+#   2. In the Cloudflare dashboard → Workers & Pages → create a Pages project
+#      named "daisynotes" with production branch = main, then attach the
+#      daisynotes.app custom domain to it. (The project name must match
+#      --project-name below.)
+
+name: marketing
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "marketing/**"
+      - ".github/workflows/marketing.yml"
+  workflow_dispatch: # allow manual redeploys from the Actions tab
+
+permissions:
+  contents: read
+
+concurrency:
+  group: marketing-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: marketing/package-lock.json
+
+      - name: Install
+        working-directory: marketing
+        run: npm ci
+
+      - name: Build
+        working-directory: marketing
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy marketing/dist --project-name=daisynotes --branch=main

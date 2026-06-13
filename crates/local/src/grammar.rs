@@ -2,7 +2,7 @@
 //!
 //! Mirrors the three tool schemas in `crates/agent/src/prompts.rs`: `pass`,
 //! `leave_notes` (1–2 notes), `respond`. Register and kind enums are
-//! hardcoded to match `muse_agent::types::REGISTERS` and the note kinds.
+//! hardcoded to match `daisynotes_agent::types::REGISTERS` and the note kinds.
 
 /// Root rule name passed to `LlamaSampler::grammar`.
 pub const GRAMMAR_ROOT: &str = "root";

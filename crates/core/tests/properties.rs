@@ -6,7 +6,7 @@
 
 use std::ops::Range;
 
-use muse_core::{Document, EntryId, FontFamily, Ink, InlineStyle, SIZE_STEPS, StyleToggle, Voice};
+use daisynotes_core::{Document, EntryId, FontFamily, Ink, InlineStyle, SIZE_STEPS, StyleToggle, Voice};
 use proptest::prelude::*;
 
 // ── Strategies ──────────────────────────────────────────────────────────────

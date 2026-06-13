@@ -1,16 +1,16 @@
-//! muse-local — on-device Muse: llama.cpp inference over quantized Gemma
+//! daisynotes-local — on-device Muse: llama.cpp inference over quantized Gemma
 //! models, downloaded once into Application Support. The default brain when
-//! no API key is present. Speaks the same request/reply types as muse-api,
+//! no API key is present. Speaks the same request/reply types as daisynotes-api,
 //! so the agent pipeline cannot tell the brains apart.
 //!
 //! Layout:
-//! - [`worker`] — the `"muse-local"` thread, command loop, download driver;
+//! - [`worker`] — the `"daisynotes-local"` thread, command loop, download driver;
 //! - [`engine`] — llama.cpp backend/model/context and the decode loop;
 //! - [`prompt`] — Gemma chat-format prompt assembly + middle truncation;
 //! - [`grammar`] — the GBNF grammar constraining output to one tool JSON;
-//! - [`reply`] — model text → [`muse_api::ClaudeReply`] mapping.
+//! - [`reply`] — model text → [`daisynotes_api::ClaudeReply`] mapping.
 //!
-//! Invariants mirrored from muse-api: a receiver handed out by
+//! Invariants mirrored from daisynotes-api: a receiver handed out by
 //! [`LocalHandle::request`] always resolves (the `ReplyGuard` drop pattern),
 //! and nothing in this crate panics on engine failure — every llama error
 //! maps to [`LocalError::Engine`].
@@ -25,10 +25,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use futures::channel::oneshot;
-use muse_api::{ClaudeReply, ClaudeRequest};
+use daisynotes_api::{ClaudeReply, ClaudeRequest};
 use parking_lot::Mutex;
 
-/// The on-device models Muse can run, smallest first.
+/// The on-device models Daisy Notes can run, smallest first.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LocalModel {
     /// Gemma 3 1B instruct, Q4_K_M (~0.8 GB). Quick, lighter machines.
@@ -75,12 +75,12 @@ impl LocalModel {
     }
 }
 
-/// Where models live: `~/Library/Application Support/Muse/models`.
+/// Where models live: `~/Library/Application Support/DaisyNotes/models`.
 pub fn models_dir() -> PathBuf {
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
-    home.join("Library/Application Support/Muse/models")
+    home.join("Library/Application Support/DaisyNotes/models")
 }
 
 /// The on-disk path for a model.
@@ -155,15 +155,15 @@ impl LocalHandle {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         let download = Arc::new(Mutex::new(DownloadState::Idle));
         let state = Arc::clone(&download);
-        let thread = std::thread::Builder::new().name("muse-local".to_string());
+        let thread = std::thread::Builder::new().name("daisynotes-local".to_string());
         if let Err(err) = thread.spawn(move || worker::worker_main(rx, state)) {
-            tracing::error!(%err, "muse-local: failed to spawn worker thread");
+            tracing::error!(%err, "daisynotes-local: failed to spawn worker thread");
         }
         LocalHandle { tx, download }
     }
 
     /// Run one consideration on the local model. Mirrors
-    /// `muse_api::ApiHandle::request`: never hangs — the receiver always
+    /// `daisynotes_api::ApiHandle::request`: never hangs — the receiver always
     /// resolves.
     pub fn request(
         &self,
@@ -175,7 +175,7 @@ impl LocalHandle {
             reply: worker::ReplyGuard::new(tx),
         };
         if let Err(unsent) = self.tx.send(command) {
-            tracing::warn!("muse-local: worker thread is gone; failing request");
+            tracing::warn!("daisynotes-local: worker thread is gone; failing request");
             if let worker::Command::Infer { reply, .. } = unsent.0 {
                 reply.fulfill(Err(LocalError::Channel));
             }
@@ -189,7 +189,7 @@ impl LocalHandle {
         {
             let mut state = self.download.lock();
             if matches!(*state, DownloadState::Downloading { .. }) {
-                tracing::debug!("muse-local: download already in flight; ignoring");
+                tracing::debug!("daisynotes-local: download already in flight; ignoring");
                 return;
             }
             *state = DownloadState::Downloading {
@@ -199,7 +199,7 @@ impl LocalHandle {
             };
         }
         if self.tx.send(worker::Command::Download { model }).is_err() {
-            tracing::warn!("muse-local: worker thread is gone; failing download");
+            tracing::warn!("daisynotes-local: worker thread is gone; failing download");
             *self.download.lock() = DownloadState::Failed {
                 model,
                 error: "local worker unavailable".to_string(),
@@ -282,7 +282,7 @@ mod tests {
     #[test]
     fn paths_follow_home() {
         let dir = models_dir();
-        assert!(dir.ends_with("Library/Application Support/Muse/models"));
+        assert!(dir.ends_with("Library/Application Support/DaisyNotes/models"));
         let path = model_path(LocalModel::Light);
         assert_eq!(path, dir.join("gemma-3-1b-it-Q4_K_M.gguf"));
         assert!(

@@ -1,7 +1,7 @@
 # Releases, two lanes:
 #
 # 1. Every push to main → an automatic PRE-release tagged
-#    v{version}-build.{run} with Muse.dmg/zip attached. Pre-releases never
+#    v{version}-build.{run} with DaisyNotes.dmg/zip attached. Pre-releases never
 #    become `releases/latest`, so the landing page's download button keeps
 #    serving the notarized stable build.
 #
@@ -10,11 +10,18 @@
 #    release with notarized assets BEFORE pushing the tag; CI then sees the
 #    release already exists and leaves it alone. If a tag is pushed bare,
 #    CI creates the release itself with ad-hoc-signed assets as a fallback.
+#
+# Marketing-only pushes are skipped here (they deploy via marketing.yml). The
+# paths-ignore below applies to branch pushes only — GitHub does not evaluate
+# path filters for tag pushes, so v* tags always build.
 
 name: release
 on:
   push:
     branches: ["main"]
+    paths-ignore:
+      - "marketing/**"
+      - ".github/workflows/marketing.yml"
     tags: ["v*"]
 
 permissions:
@@ -53,15 +60,15 @@ jobs:
               echo "release $TAG already exists (created locally, notarized) — not touching its assets"
               exit 0
             fi
-            gh release create "$TAG" dist/Muse.dmg dist/Muse.zip \
-              --title "Muse ${TAG#v}" \
+            gh release create "$TAG" dist/DaisyNotes.dmg dist/DaisyNotes.zip \
+              --title "Daisy Notes ${TAG#v}" \
               --generate-notes
           else
             TAG="v${VERSION}-build.${GITHUB_RUN_NUMBER}"
             SHORT_SHA=$(git rev-parse --short HEAD)
-            gh release create "$TAG" dist/Muse.dmg dist/Muse.zip \
+            gh release create "$TAG" dist/DaisyNotes.dmg dist/DaisyNotes.zip \
               --prerelease \
               --target "$GITHUB_SHA" \
-              --title "Muse ${VERSION} (build ${GITHUB_RUN_NUMBER}, ${SHORT_SHA})" \
+              --title "Daisy Notes ${VERSION} (build ${GITHUB_RUN_NUMBER}, ${SHORT_SHA})" \
               --notes "Automatic build of \`${SHORT_SHA}\` from \`main\`. Ad-hoc signed — for testing; grab the latest stable release for the notarized app."
           fi

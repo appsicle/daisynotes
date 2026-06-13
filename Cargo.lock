@@ -1232,6 +1232,169 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2931af7e13dc045d8e9d26afccc6fa115d64e115c9c84b1166288b46f6782c2"
 
 [[package]]
+name = "daisynotes"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "daisynotes-agent",
+ "daisynotes-api",
+ "daisynotes-commands",
+ "daisynotes-core",
+ "daisynotes-editor",
+ "daisynotes-entries",
+ "daisynotes-local",
+ "daisynotes-storage",
+ "daisynotes-theme",
+ "daisynotes-topbar",
+ "daisynotes-ui",
+ "gpui",
+ "jiff",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "tracing",
+ "tracing-subscriber",
+ "ulid",
+]
+
+[[package]]
+name = "daisynotes-agent"
+version = "0.1.0"
+dependencies = [
+ "daisynotes-api",
+ "daisynotes-core",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
+name = "daisynotes-api"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "parking_lot",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "daisynotes-commands"
+version = "0.1.0"
+dependencies = [
+ "gpui",
+ "serde",
+]
+
+[[package]]
+name = "daisynotes-core"
+version = "0.1.0"
+dependencies = [
+ "jiff",
+ "proptest",
+ "ropey",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "thiserror 2.0.18",
+ "ulid",
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "daisynotes-editor"
+version = "0.1.0"
+dependencies = [
+ "daisynotes-commands",
+ "daisynotes-core",
+ "daisynotes-theme",
+ "daisynotes-ui",
+ "gpui",
+ "parking_lot",
+ "serde_json",
+ "smallvec",
+ "tracing",
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "daisynotes-entries"
+version = "0.1.0"
+dependencies = [
+ "daisynotes-commands",
+ "daisynotes-core",
+ "daisynotes-storage",
+ "daisynotes-theme",
+ "daisynotes-ui",
+ "gpui",
+ "jiff",
+]
+
+[[package]]
+name = "daisynotes-local"
+version = "0.1.0"
+dependencies = [
+ "daisynotes-api",
+ "futures",
+ "llama-cpp-2",
+ "parking_lot",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "daisynotes-storage"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "jiff",
+ "parking_lot",
+ "rusqlite",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+ "ulid",
+]
+
+[[package]]
+name = "daisynotes-theme"
+version = "0.1.0"
+dependencies = [
+ "gpui",
+ "serde",
+]
+
+[[package]]
+name = "daisynotes-topbar"
+version = "0.1.0"
+dependencies = [
+ "daisynotes-commands",
+ "daisynotes-core",
+ "daisynotes-theme",
+ "daisynotes-ui",
+ "gpui",
+]
+
+[[package]]
+name = "daisynotes-ui"
+version = "0.1.0"
+dependencies = [
+ "daisynotes-theme",
+ "gpui",
+ "smallvec",
+]
+
+[[package]]
 name = "data-url"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3261,169 +3424,6 @@ checksum = "bb85c154ba489f01b25c0d36ae69a87e4a1c73a72631fc6c0eb6dde34a73e44b"
 dependencies = [
  "num-traits",
  "pxfm",
-]
-
-[[package]]
-name = "muse"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "gpui",
- "jiff",
- "muse-agent",
- "muse-api",
- "muse-commands",
- "muse-core",
- "muse-editor",
- "muse-entries",
- "muse-local",
- "muse-storage",
- "muse-theme",
- "muse-topbar",
- "muse-ui",
- "parking_lot",
- "serde",
- "serde_json",
- "smallvec",
- "tracing",
- "tracing-subscriber",
- "ulid",
-]
-
-[[package]]
-name = "muse-agent"
-version = "0.1.0"
-dependencies = [
- "muse-api",
- "muse-core",
- "parking_lot",
- "serde",
- "serde_json",
- "tracing",
-]
-
-[[package]]
-name = "muse-api"
-version = "0.1.0"
-dependencies = [
- "futures",
- "parking_lot",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "muse-commands"
-version = "0.1.0"
-dependencies = [
- "gpui",
- "serde",
-]
-
-[[package]]
-name = "muse-core"
-version = "0.1.0"
-dependencies = [
- "jiff",
- "proptest",
- "ropey",
- "serde",
- "serde_json",
- "smallvec",
- "thiserror 2.0.18",
- "ulid",
- "unicode-segmentation",
-]
-
-[[package]]
-name = "muse-editor"
-version = "0.1.0"
-dependencies = [
- "gpui",
- "muse-commands",
- "muse-core",
- "muse-theme",
- "muse-ui",
- "parking_lot",
- "serde_json",
- "smallvec",
- "tracing",
- "unicode-segmentation",
-]
-
-[[package]]
-name = "muse-entries"
-version = "0.1.0"
-dependencies = [
- "gpui",
- "jiff",
- "muse-commands",
- "muse-core",
- "muse-storage",
- "muse-theme",
- "muse-ui",
-]
-
-[[package]]
-name = "muse-local"
-version = "0.1.0"
-dependencies = [
- "futures",
- "llama-cpp-2",
- "muse-api",
- "parking_lot",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "muse-storage"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "jiff",
- "parking_lot",
- "rusqlite",
- "serde_json",
- "thiserror 2.0.18",
- "tracing",
- "ulid",
-]
-
-[[package]]
-name = "muse-theme"
-version = "0.1.0"
-dependencies = [
- "gpui",
- "serde",
-]
-
-[[package]]
-name = "muse-topbar"
-version = "0.1.0"
-dependencies = [
- "gpui",
- "muse-commands",
- "muse-core",
- "muse-theme",
- "muse-ui",
-]
-
-[[package]]
-name = "muse-ui"
-version = "0.1.0"
-dependencies = [
- "gpui",
- "muse-theme",
- "smallvec",
 ]
 
 [[package]]

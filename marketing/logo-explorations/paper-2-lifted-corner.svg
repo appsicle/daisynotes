@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg2" x1="90" y1="60" x2="910" y2="940" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D6D9D3"/>
+      <stop offset="1" stop-color="#AEB7AF"/>
+    </linearGradient>
+    <linearGradient id="paper2" x1="330" y1="190" x2="680" y2="825" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FBFAF6"/>
+      <stop offset=".72" stop-color="#F7F5F0"/>
+      <stop offset="1" stop-color="#E8E5DD"/>
+    </linearGradient>
+    <linearGradient id="curl2" x1="650" y1="636" x2="760" y2="792" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset=".55" stop-color="#F6F3EC"/>
+      <stop offset="1" stop-color="#D8D4CB"/>
+    </linearGradient>
+    <filter id="shadow2" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="30" stdDeviation="28" flood-color="#20211F" flood-opacity=".3"/>
+    </filter>
+    <filter id="blur2" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" rx="225" fill="url(#bg2)"/>
+  <ellipse cx="514" cy="800" rx="246" ry="48" fill="#20211F" opacity=".12" filter="url(#blur2)"/>
+  <g transform="rotate(3 512 512)" filter="url(#shadow2)">
+    <path d="M300 205h424c23 0 42 19 42 42v508c0 24-19 43-42 43H300c-23 0-42-19-42-43V247c0-23 19-42 42-42z" fill="url(#paper2)"/>
+    <path d="M646 703c43 10 75 36 96 79-10 10-24 16-39 16H604c27-20 38-52 42-95z" fill="#C5C2BA" opacity=".28" filter="url(#blur2)"/>
+    <path d="M628 680c57 15 94 50 116 106-11 8-24 12-38 12H612c19-29 22-72 16-118z" fill="url(#curl2)"/>
+    <path d="M628 680c16 42 10 84-16 118" fill="none" stroke="#C9C5BC" stroke-width="4" opacity=".45"/>
+    <path d="M300 205h424c22 0 41 19 41 42v22c-160-16-308-12-507 12v-34c0-23 19-42 42-42z" fill="#FFFFFF" opacity=".28"/>
+    <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M362 390c28-14 60-13 94 5 40 21 75-17 121 0 35 13 65 15 96-3" stroke="#6F6E69" stroke-width="19" opacity=".58"/>
+      <path d="M360 482c42 16 80-18 121-2 38 15 68 22 105 0 30-18 61-9 91 8" stroke="#9A9A94" stroke-width="18" opacity=".66"/>
+      <path d="M382 572c38-8 70 15 109 12 32-3 61-25 96-12 29 10 55 9 80-4" stroke="#B4B3AD" stroke-width="17" opacity=".76"/>
+      <path d="M388 654c31 10 62-7 94-2 25 4 47 16 75 4" stroke="#8F8E89" stroke-width="15" opacity=".52"/>
+    </g>
+  </g>
+</svg>

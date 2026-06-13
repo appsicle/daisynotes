@@ -12,13 +12,13 @@
 use std::time::Duration;
 
 use gpui::{Context, SharedString};
-use muse_agent::{
+use daisynotes_agent::{
     AgentDecision, DocSnapshot, NoteKind, NoteRecord, TriggerEngine, build_request,
     dismissal_digest, locate_quote, parse_decision,
 };
-use muse_api::{ApiError, ClaudeReply};
-use muse_editor::{Annotation, AnnotationTone};
-use muse_topbar::OrbState;
+use daisynotes_api::{ApiError, ClaudeReply};
+use daisynotes_editor::{Annotation, AnnotationTone};
+use daisynotes_topbar::OrbState;
 
 use crate::persistence::now_ms;
 use crate::workspace::Workspace;
@@ -29,7 +29,7 @@ const ORB_NOTE_LINGER: Duration = Duration::from_secs(8);
 /// A consideration failure from whichever brain ran it.
 enum BrainError {
     Cloud(ApiError),
-    Local(muse_local::LocalError),
+    Local(daisynotes_local::LocalError),
 }
 
 /// The agent's tones mirror the note kinds one to one.
@@ -47,7 +47,7 @@ impl Workspace {
     /// Whether any brain can think right now: the cloud (key present) or an
     /// installed on-device model.
     pub(crate) fn brain_available(&self) -> bool {
-        !self.key_missing || muse_local::installed_model().is_some()
+        !self.key_missing || daisynotes_local::installed_model().is_some()
     }
 
     /// Whether Muse is allowed to read along right now.
@@ -145,7 +145,7 @@ impl Workspace {
             cx.spawn(async move |this, cx| {
                 let outcome = receiver
                     .await
-                    .unwrap_or(Err(muse_local::LocalError::Channel));
+                    .unwrap_or(Err(daisynotes_local::LocalError::Channel));
                 this.update(cx, |this, cx| {
                     this.apply_consideration(&entry_id, outcome.map_err(BrainError::Local), cx);
                 })
@@ -217,7 +217,7 @@ impl Workspace {
     fn apply_notes(
         &mut self,
         entry_id: &str,
-        drafts: Vec<muse_agent::NoteDraft>,
+        drafts: Vec<daisynotes_agent::NoteDraft>,
         cx: &mut Context<Self>,
     ) {
         let text = self.editor.read(cx).document().plain_text();

@@ -2,18 +2,18 @@
 //! entry records, and the small pure helpers (clocks, titles, date labels)
 //! those writes need.
 //!
-//! Charter: every `muse_storage::Store` access made after `main`'s launch
+//! Charter: every `daisynotes_storage::Store` access made after `main`'s launch
 //! reads goes through here or `muse_flow`. This module must not know about
 //! the agent pipeline or layout.
 
 use std::time::Duration;
 
 use gpui::{Context, SharedString};
-use muse_agent::Chattiness;
-use muse_core::Document;
-use muse_entries::SyncGlyph;
-use muse_storage::{SavedEntry, Store};
-use muse_theme::{Appearance, ThemePair, derive_tokens, hsla_from_hex, presets};
+use daisynotes_agent::Chattiness;
+use daisynotes_core::Document;
+use daisynotes_entries::SyncGlyph;
+use daisynotes_storage::{SavedEntry, Store};
+use daisynotes_theme::{Appearance, ThemePair, derive_tokens, hsla_from_hex, presets};
 use ulid::Ulid;
 
 use crate::workspace::Workspace;
@@ -93,13 +93,13 @@ pub(crate) fn pair_from_settings(
         Some(name) => presets()
             .iter()
             .find(|preset| preset.name == name)
-            .map_or_else(ThemePair::default, muse_theme::ThemePreset::pair),
+            .map_or_else(ThemePair::default, daisynotes_theme::ThemePreset::pair),
         None => ThemePair::default(),
     }
 }
 
 /// Parse one persisted `accent,bg,fg` hex triplet into derived tokens.
-fn tokens_from_triplet(triplet: &str) -> Option<muse_theme::Tokens> {
+fn tokens_from_triplet(triplet: &str) -> Option<daisynotes_theme::Tokens> {
     let mut parts = triplet.split(',').map(str::trim).map(hsla_from_hex);
     let accent = parts.next()??;
     let bg = parts.next()??;

@@ -4,7 +4,7 @@
 //! (its shadow token is transparent, so the same recipe renders both).
 
 use gpui::{AnyElement, App, BoxShadow, Window, div, point, prelude::*, px};
-use muse_theme::{ActiveTheme, Tokens, layout};
+use daisynotes_theme::{ActiveTheme, Tokens, layout};
 use smallvec::SmallVec;
 
 /// The soft two-layer elevation shadow from PLAN §8:
@@ -110,7 +110,7 @@ impl RenderOnce for Card {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use muse_theme::{dusk, paper};
+    use daisynotes_theme::{dusk, paper};
 
     #[test]
     fn soft_shadow_layers_follow_the_token() {

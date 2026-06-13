@@ -1,5 +1,5 @@
 [package]
-name = "muse-local"
+name = "daisynotes-local"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,7 +9,7 @@ workspace = true
 
 [dependencies]
 llama-cpp-2.workspace = true
-muse-api.workspace = true
+daisynotes-api.workspace = true
 reqwest = { workspace = true, features = ["stream"] }
 tokio.workspace = true
 futures.workspace = true

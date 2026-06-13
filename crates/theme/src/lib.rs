@@ -1,4 +1,4 @@
-//! muse-theme — design tokens: Paper/Dusk palettes, type scale, spacing,
+//! daisynotes-theme — design tokens: Paper/Dusk palettes, type scale, spacing,
 //! motion constants, and OKLCH interpolation for animated theme crossfades.
 //!
 //! This crate owns the visual constants of Muse and nothing else. It knows

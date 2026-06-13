@@ -16,7 +16,7 @@ use gpui::{
     SharedString, Style, TextRun, UTF16Selection, UnderlineStyle, Window, actions, div, fill,
     point, prelude::*, px, relative, size,
 };
-use muse_theme::{ActiveTheme, layout};
+use daisynotes_theme::{ActiveTheme, layout};
 
 actions!(
     muse_text_field,
@@ -49,7 +49,7 @@ actions!(
 );
 
 /// The key context every [`TextField`] renders under.
-pub const TEXT_FIELD_CONTEXT: &str = "MuseTextField";
+pub const TEXT_FIELD_CONTEXT: &str = "DaisyNotesTextField";
 
 /// The keybindings a [`TextField`] needs; the app installs these once at
 /// startup alongside its own keymap.

@@ -5,7 +5,7 @@
 //! extracted, and anything unparseable degrades to a clean `pass` so the
 //! agent's `parse_decision` always has something sensible to chew on.
 
-use muse_api::ClaudeReply;
+use daisynotes_api::ClaudeReply;
 use serde_json::Value;
 
 /// Reason carried by the synthetic pass when output cannot be parsed.
@@ -21,7 +21,7 @@ pub fn reply_from_output(raw: &str) -> ClaudeReply {
             stop_reason: Some("tool_use".to_string()),
         },
         None => {
-            tracing::warn!(len = raw.len(), "muse-local: unparseable model output");
+            tracing::warn!(len = raw.len(), "daisynotes-local: unparseable model output");
             synthetic_pass()
         }
     }

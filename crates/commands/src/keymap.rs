@@ -16,12 +16,12 @@ use crate::actions::{
 
 /// Key context the editor sets on its focusable element. Editor-scope
 /// bindings only fire while the caret lives in the page.
-pub const EDITOR_CONTEXT: &str = "MuseEditor";
+pub const EDITOR_CONTEXT: &str = "DaisyNotesEditor";
 
 /// Key context the workspace sets on its root element. Workspace-scope
 /// bindings fire anywhere inside the window — including while the editor has
 /// focus, since the editor is a descendant of the workspace.
-pub const WORKSPACE_CONTEXT: &str = "MuseWorkspace";
+pub const WORKSPACE_CONTEXT: &str = "DaisyNotesWorkspace";
 
 /// The complete key binding table for Muse, ready for
 /// `gpui::App::bind_keys`.

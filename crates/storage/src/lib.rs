@@ -1,4 +1,4 @@
-//! muse-storage — SQLite local truth: schema, entry store, autosave flushes.
+//! daisynotes-storage — SQLite local truth: schema, entry store, autosave flushes.
 //! The launch path reads from here synchronously; the network never blocks it.
 //!
 //! This crate owns:
@@ -11,7 +11,7 @@
 //! - the data directory location ([`data_dir`]).
 //!
 //! It must not know about:
-//! - the document model (`muse-core`): entry ids cross this boundary as plain
+//! - the document model (`daisynotes-core`): entry ids cross this boundary as plain
 //!   ulid `&str`/`String`, documents as opaque JSON strings plus a plain-text
 //!   mirror for future FTS;
 //! - the network: sync will later read `rev`/`synced_rev` from its own crate;

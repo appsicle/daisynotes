@@ -1,10 +1,10 @@
 //! An animated on/off toggle for settings. The knob slides
-//! along [`muse_theme::motion::MOVE`] with the spring-settle curve.
+//! along [`daisynotes_theme::motion::MOVE`] with the spring-settle curve.
 
 use gpui::{
     Animation, AnimationExt as _, App, BoxShadow, ElementId, Window, div, point, prelude::*, px,
 };
-use muse_theme::{ActiveTheme, Appearance, motion};
+use daisynotes_theme::{ActiveTheme, Appearance, motion};
 
 const TRACK_W: f32 = 34.0;
 const TRACK_H: f32 = 20.0;

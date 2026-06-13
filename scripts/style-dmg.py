@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # Write the installer-window styling (.DS_Store) onto a mounted DMG volume:
 # icon view, paper background (.background.png at the volume root), 100px
-# icons, Muse.app and Applications flanking the arrow.
+# icons, DaisyNotes.app and Applications flanking the arrow.
 #
 # Runs with the dmgbuild pipx venv's python (has ds_store + mac_alias):
-#   ~/.local/pipx/venvs/dmgbuild/bin/python scripts/style-dmg.py /Volumes/Muse
+#   ~/.local/pipx/venvs/dmgbuild/bin/python scripts/style-dmg.py /Volumes/Daisy\ Notes
 #
 # Exists because both ditto and cp are denied writing app bundles to mounted
 # images on macOS 26, so dmgbuild's own copy step fails; we bake the app in
@@ -51,7 +51,7 @@ with DSStore.open(mount + "/.DS_Store", "w+") as d:
     d["."]["vSrn"] = ("long", 1)
     d["."]["bwsp"] = bwsp
     d["."]["icvp"] = icvp
-    d["Muse.app"]["Iloc"] = (150, 185)
+    d["DaisyNotes.app"]["Iloc"] = (150, 185)
     d["Applications"]["Iloc"] = (450, 185)
 
 print("styled", mount)

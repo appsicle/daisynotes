@@ -1,4 +1,4 @@
-//! The `"muse-api"` worker thread and the [`ApiHandle`] the app talks to.
+//! The `"daisynotes-api"` worker thread and the [`ApiHandle`] the app talks to.
 //!
 //! One std thread owns a 2-worker tokio runtime and drains an mpsc command
 //! queue; each command becomes a concurrent task that performs one HTTP call
@@ -20,7 +20,7 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 /// Pause before the single retry on a transient status.
 const RETRY_DELAY: Duration = Duration::from_secs(2);
 
-/// A cheap-to-clone, thread-safe handle to the `"muse-api"` worker thread.
+/// A cheap-to-clone, thread-safe handle to the `"daisynotes-api"` worker thread.
 ///
 /// Obtain one via [`spawn`] (or [`ApiHandle::spawn`]); clones share the same
 /// worker. The worker shuts down on its own once every handle is dropped.
@@ -29,7 +29,7 @@ pub struct ApiHandle {
     tx: mpsc::UnboundedSender<Command>,
 }
 
-/// Starts the dedicated `"muse-api"` thread and returns a handle to it.
+/// Starts the dedicated `"daisynotes-api"` thread and returns a handle to it.
 ///
 /// Convenience alias for [`ApiHandle::spawn`].
 pub fn spawn() -> ApiHandle {
@@ -37,16 +37,16 @@ pub fn spawn() -> ApiHandle {
 }
 
 impl ApiHandle {
-    /// Starts a std thread named `"muse-api"` running a tokio multi-thread
+    /// Starts a std thread named `"daisynotes-api"` running a tokio multi-thread
     /// runtime (2 workers) with an mpsc command loop, and returns the handle.
     ///
     /// Never panics: if the thread cannot be spawned, every subsequent
     /// [`ApiHandle::request`] resolves to `Err(ApiError::Channel)`.
     pub fn spawn() -> ApiHandle {
         let (tx, rx) = mpsc::unbounded_channel();
-        let thread = std::thread::Builder::new().name("muse-api".to_string());
+        let thread = std::thread::Builder::new().name("daisynotes-api".to_string());
         if let Err(err) = thread.spawn(move || worker_main(rx)) {
-            tracing::error!(%err, "muse-api: failed to spawn worker thread");
+            tracing::error!(%err, "daisynotes-api: failed to spawn worker thread");
         }
         ApiHandle { tx }
     }
@@ -63,7 +63,7 @@ impl ApiHandle {
             reply: ReplyGuard(Some(tx)),
         };
         if let Err(unsent) = self.tx.send(command) {
-            tracing::warn!("muse-api: worker thread is gone; failing request");
+            tracing::warn!("daisynotes-api: worker thread is gone; failing request");
             unsent.0.reply.fulfill(Err(ApiError::Channel));
         }
         rx
@@ -104,7 +104,7 @@ impl Drop for ReplyGuard {
 fn worker_main(mut rx: mpsc::UnboundedReceiver<Command>) {
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
-        .thread_name("muse-api-worker")
+        .thread_name("daisynotes-api-worker")
         .enable_all()
         .build()
     {
@@ -112,7 +112,7 @@ fn worker_main(mut rx: mpsc::UnboundedReceiver<Command>) {
         Err(err) => {
             // Dropping `rx` resolves every queued and future request to
             // Err(ApiError::Channel) via ReplyGuard.
-            tracing::error!(%err, "muse-api: failed to build tokio runtime");
+            tracing::error!(%err, "daisynotes-api: failed to build tokio runtime");
             return;
         }
     };
@@ -121,7 +121,7 @@ fn worker_main(mut rx: mpsc::UnboundedReceiver<Command>) {
         let client = match reqwest::Client::builder().timeout(REQUEST_TIMEOUT).build() {
             Ok(client) => client,
             Err(err) => {
-                tracing::error!(%err, "muse-api: failed to build http client");
+                tracing::error!(%err, "daisynotes-api: failed to build http client");
                 while let Some(command) = rx.recv().await {
                     command.reply.fulfill(Err(ApiError::Network(format!(
                         "http client unavailable: {err}"
@@ -146,7 +146,7 @@ fn worker_main(mut rx: mpsc::UnboundedReceiver<Command>) {
                 },
                 Some(joined) = tasks.join_next(), if !tasks.is_empty() => {
                     if let Err(err) = joined {
-                        tracing::error!(%err, "muse-api: request task failed");
+                        tracing::error!(%err, "daisynotes-api: request task failed");
                     }
                 }
             }
@@ -155,7 +155,7 @@ fn worker_main(mut rx: mpsc::UnboundedReceiver<Command>) {
         // runtime (and their reply guards) are torn down.
         while let Some(joined) = tasks.join_next().await {
             if let Err(err) = joined {
-                tracing::error!(%err, "muse-api: request task failed");
+                tracing::error!(%err, "daisynotes-api: request task failed");
             }
         }
     });
@@ -177,7 +177,7 @@ async fn perform(client: &reqwest::Client, req: ClaudeRequest) -> Result<ClaudeR
         model = %req.model,
         turns = req.messages.len(),
         has_tools = req.tools.is_some(),
-        "muse-api: dispatching request"
+        "daisynotes-api: dispatching request"
     );
 
     let mut first_attempt = true;
@@ -194,7 +194,7 @@ async fn perform(client: &reqwest::Client, req: ClaudeRequest) -> Result<ClaudeR
         let response = match response {
             Ok(response) => response,
             Err(err) => {
-                tracing::warn!(%err, "muse-api: network error");
+                tracing::warn!(%err, "daisynotes-api: network error");
                 return Err(ApiError::Network(err.to_string()));
             }
         };
@@ -209,21 +209,21 @@ async fn perform(client: &reqwest::Client, req: ClaudeRequest) -> Result<ClaudeR
             tracing::debug!(
                 stop_reason = reply.stop_reason.as_deref().unwrap_or("none"),
                 tool = reply.tool_name.as_deref().unwrap_or("none"),
-                "muse-api: reply received"
+                "daisynotes-api: reply received"
             );
             return Ok(reply);
         }
 
         if first_attempt && wire::is_retryable(status) {
             first_attempt = false;
-            tracing::debug!(status, "muse-api: transient status, retrying once");
+            tracing::debug!(status, "daisynotes-api: transient status, retrying once");
             tokio::time::sleep(RETRY_DELAY).await;
             continue;
         }
 
         let body = response.text().await.unwrap_or_default();
         let err = wire::status_error(status, &body);
-        tracing::warn!(status, "muse-api: api error");
+        tracing::warn!(status, "daisynotes-api: api error");
         return Err(err);
     }
 }

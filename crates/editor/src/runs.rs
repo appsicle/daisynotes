@@ -5,8 +5,8 @@
 use std::ops::Range;
 
 use gpui::{Font, FontFeatures, FontStyle, FontWeight, Hsla, SharedString, TextRun, UnderlineStyle, px};
-use muse_core::{FontFamily, Ink, InlineStyle, Voice};
-use muse_theme::fonts;
+use daisynotes_core::{FontFamily, Ink, InlineStyle, Voice};
+use daisynotes_theme::fonts;
 
 /// Bold adds this much to the voice's base weight (capped). With a 400 base
 /// that lands on 700; heavier voices cap at 800 so bold stays distinct
@@ -128,8 +128,8 @@ fn make_run(len: usize, style: InlineStyle, voice: Voice, palette: [Hsla; 4], ma
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use muse_core::{Document, EntryId, StyleToggle};
-    use muse_theme::paper;
+    use daisynotes_core::{Document, EntryId, StyleToggle};
+    use daisynotes_theme::paper;
 
     fn doc_with(text: &str) -> Document {
         let mut doc = Document::new(EntryId::default());
@@ -142,7 +142,7 @@ mod tests {
         let mut doc = doc_with("plain bold italic");
         doc.toggle_style(6..10, StyleToggle::Bold);
         doc.toggle_style(11..17, StyleToggle::Italic);
-        doc.toggle_style(11..17, StyleToggle::Ink(Some(muse_core::Ink::Moss)));
+        doc.toggle_style(11..17, StyleToggle::Ink(Some(daisynotes_core::Ink::Moss)));
 
         let palette = paper().ink_palette();
         let voice = Voice::default();
@@ -178,7 +178,7 @@ mod tests {
         let mut doc = doc_with("under struck");
         doc.toggle_style(0..5, StyleToggle::Underline);
         doc.toggle_style(6..12, StyleToggle::Strike);
-        doc.toggle_style(6..12, StyleToggle::Ink(Some(muse_core::Ink::Rose)));
+        doc.toggle_style(6..12, StyleToggle::Ink(Some(daisynotes_core::Ink::Rose)));
 
         let palette = paper().ink_palette();
         let tiles = doc.spans().runs_in(0..12);

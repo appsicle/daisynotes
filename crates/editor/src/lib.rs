@@ -1,4 +1,4 @@
-//! muse-editor — the page itself: multi-paragraph rich-text layout,
+//! daisynotes-editor — the page itself: multi-paragraph rich-text layout,
 //! rendering, input (including IME), caret and selection, clipboard,
 //! margin annotations, and the end-of-entry coda.
 //!
@@ -24,8 +24,8 @@ use gpui::{
     MouseMoveEvent, MouseUpEvent, Pixels, Point, Render, ScrollWheelEvent, SharedString,
     UTF16Selection, Window, div, prelude::*, px, size,
 };
-use muse_commands as cmd;
-use muse_core::{Document, InlineStyle, StyleToggle, Voice};
+use daisynotes_commands as cmd;
+use daisynotes_core::{Document, InlineStyle, StyleToggle, Voice};
 
 use crate::anim::CaretSpring;
 use crate::clipboard::Envelope;
@@ -131,8 +131,19 @@ pub struct Editor {
 
     pill_shown: bool,
     pill_token: u64,
+    /// Which format-pill dropdown is open, if any.
+    pill_menu: Option<PillMenu>,
 
     autoscroll_to: Option<usize>,
+}
+
+/// The two dropdowns the format pill can open.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum PillMenu {
+    /// The font-family chooser.
+    Family,
+    /// The font-size chooser.
+    Size,
 }
 
 impl Editor {
@@ -170,6 +181,7 @@ impl Editor {
             coda: None,
             pill_shown: false,
             pill_token: 0,
+            pill_menu: None,
             autoscroll_to: None,
         }
     }
@@ -489,8 +501,41 @@ impl Editor {
         self.pill_token = self.pill_token.wrapping_add(1);
         if self.pill_shown {
             self.pill_shown = false;
+            self.pill_menu = None;
             cx.notify();
         }
+    }
+
+    /// Which pill dropdown is open (read by the overlay renderer).
+    pub(crate) fn pill_menu(&self) -> Option<PillMenu> {
+        self.pill_menu
+    }
+
+    /// Open `kind`'s dropdown, or close it if it's already open.
+    pub(crate) fn toggle_pill_menu(&mut self, kind: PillMenu, cx: &mut Context<Self>) {
+        self.pill_menu = if self.pill_menu == Some(kind) { None } else { Some(kind) };
+        cx.notify();
+    }
+
+    /// Close any open pill dropdown.
+    pub(crate) fn close_pill_menu(&mut self, cx: &mut Context<Self>) {
+        if self.pill_menu.take().is_some() {
+            cx.notify();
+        }
+    }
+
+    /// Pick a font family from the pill's family dropdown, then close it.
+    pub(crate) fn choose_family(&mut self, family: daisynotes_core::FontFamily, cx: &mut Context<Self>) {
+        let voice = Voice { family, ..self.doc.voice() };
+        self.apply_voice(voice, cx);
+        self.close_pill_menu(cx);
+    }
+
+    /// Pick a base size from the pill's size dropdown, then close it.
+    pub(crate) fn choose_size(&mut self, size: f32, cx: &mut Context<Self>) {
+        let voice = Voice { size, ..self.doc.voice() };
+        self.apply_voice(voice, cx);
+        self.close_pill_menu(cx);
     }
 
     /// Bloom the pill once the selection has been stable for a beat.
@@ -595,7 +640,7 @@ impl Editor {
                 .notes
                 .iter()
                 .find(|slot| slot.ann.id == id)
-                .is_some_and(|slot| slot.ann.body.is_empty());
+                .is_some_and(|slot| slot.ann.emoji.is_some());
             if is_reaction {
                 self.dismiss_note(id, cx);
                 return;
@@ -686,14 +731,14 @@ impl Editor {
         if hovered != self.hovered_dot {
             self.hovered_dot = hovered;
             if let Some(id) = hovered {
-                // Pure reactions have no card; only notes reveal one.
-                let has_body = self
+                // Pure reactions carry no message; only notes reveal a card.
+                let is_note = self
                     .notes
                     .iter()
                     .find(|slot| slot.ann.id == id)
-                    .is_some_and(|slot| !slot.ann.body.is_empty());
+                    .is_some_and(|slot| slot.ann.emoji.is_none());
                 let already_open = self.card.as_ref().is_some_and(|card| card.id == id);
-                if has_body && !already_open {
+                if is_note && !already_open {
                     self.card = Some(OpenCard { id, pinned: false });
                 }
             }
@@ -789,15 +834,26 @@ impl Editor {
         }
     }
 
-    /// The annotation dot (if any) under a window position.
+    /// The annotation (if any) under a window position: a note is hit anywhere
+    /// over its highlighted text; a reaction within the circle around its
+    /// margin marker.
     fn dot_hit(snap: &Snapshot, position: Point<Pixels>) -> Option<u64> {
-        const REACH: f32 = 10.0;
+        const REACH: f32 = 14.0;
+        let (cx, cy) = snap.to_content(position);
         for dot in &snap.dots {
-            let center = snap.to_window((dot.center.0, dot.center.1));
-            let dx = f32::from(position.x - center.x);
-            let dy = f32::from(position.y - center.y);
-            if dx.abs() <= REACH && dy.abs() <= REACH {
-                return Some(dot.id);
+            if dot.rects.is_empty() {
+                let center = snap.to_window((dot.center.0, dot.center.1));
+                let dx = f32::from(position.x - center.x);
+                let dy = f32::from(position.y - center.y);
+                if dx.abs() <= REACH && dy.abs() <= REACH {
+                    return Some(dot.id);
+                }
+            } else {
+                for r in &dot.rects {
+                    if cx >= r.x - 2.0 && cx <= r.x + r.w + 2.0 && cy >= r.y && cy <= r.y + r.h {
+                        return Some(dot.id);
+                    }
+                }
             }
         }
         None
@@ -824,9 +880,9 @@ impl Editor {
     fn on_set_ink(&mut self, action: &cmd::SetInk, _: &mut Window, cx: &mut Context<Self>) {
         let toggle = match action.ink {
             None | Some(0) => StyleToggle::Ink(None),
-            Some(1) => StyleToggle::Ink(Some(muse_core::Ink::Rose)),
-            Some(2) => StyleToggle::Ink(Some(muse_core::Ink::Lavender)),
-            Some(3) => StyleToggle::Ink(Some(muse_core::Ink::Moss)),
+            Some(1) => StyleToggle::Ink(Some(daisynotes_core::Ink::Rose)),
+            Some(2) => StyleToggle::Ink(Some(daisynotes_core::Ink::Lavender)),
+            Some(3) => StyleToggle::Ink(Some(daisynotes_core::Ink::Moss)),
             Some(_) => return,
         };
         self.apply_style_toggle(toggle, cx);
@@ -834,10 +890,10 @@ impl Editor {
 
     fn on_set_family(&mut self, action: &cmd::SetFamily, _: &mut Window, cx: &mut Context<Self>) {
         let family = match action.family {
-            0 => muse_core::FontFamily::Literata,
-            1 => muse_core::FontFamily::Inter,
-            2 => muse_core::FontFamily::Quattro,
-            3 => muse_core::FontFamily::Mono,
+            0 => daisynotes_core::FontFamily::Literata,
+            1 => daisynotes_core::FontFamily::Inter,
+            2 => daisynotes_core::FontFamily::Quattro,
+            3 => daisynotes_core::FontFamily::Mono,
             _ => return,
         };
         let voice = Voice {
@@ -883,7 +939,7 @@ impl Editor {
 
     fn apply_history_outcome(
         &mut self,
-        outcome: muse_core::UndoOutcome,
+        outcome: daisynotes_core::UndoOutcome,
         before: Selection,
         cx: &mut Context<Self>,
     ) {

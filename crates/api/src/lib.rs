@@ -1,11 +1,11 @@
-//! muse-api — Claude Messages API client on a dedicated tokio thread.
+//! daisynotes-api — Claude Messages API client on a dedicated tokio thread.
 //! Talks to the app exclusively through channels. Zero UI dependencies.
 //!
 //! What this crate owns:
 //! - the wire protocol for `POST https://api.anthropic.com/v1/messages`
 //!   (non-streaming): request serialization, response parsing, error mapping,
 //!   the 60s timeout, and the single-retry policy for transient statuses;
-//! - the `"muse-api"` worker thread and the tokio runtime that lives on it;
+//! - the `"daisynotes-api"` worker thread and the tokio runtime that lives on it;
 //! - API-key resolution (`ANTHROPIC_API_KEY` env var, then macOS Keychain).
 //!
 //! What it must not know about: gpui, documents, prompts, or any UI state.

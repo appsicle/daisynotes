@@ -1,4 +1,4 @@
-# VOICE.md — the essence of Muse
+# VOICE.md — the essence of Daisy Notes
 
 Every line of UI copy and every word the agent says is tested against this document.
 
@@ -6,7 +6,7 @@ Every line of UI copy and every word the agent says is tested against this docum
 
 A college student — picture her specifically — who has always been skeptical of AI.
 She's watched it write slop, flatten her friends' essays into the same voice, and get
-sold to her as the future whether she wants it or not. She did not download Muse
+sold to her as the future whether she wants it or not. She did not download Daisy Notes
 because it has AI. She downloaded it because it's a beautiful place to write.
 
 Muse is the first product that makes her feel like **a peer is on the other side** —

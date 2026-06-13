@@ -1,4 +1,4 @@
-//! muse-commands — gpui actions, the keymap, and command dispatch.
+//! daisynotes-commands — gpui actions, the keymap, and command dispatch.
 //! Menus and shortcuts route through here so they can never diverge.
 //!
 //! This crate owns exactly three declarative artifacts, and no behavior:

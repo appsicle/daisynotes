@@ -1,5 +1,5 @@
-# dmgbuild settings for the Muse installer DMG: paper background with the
-# rose arrow, Muse.app and /Applications flanking it, 100px icons.
+# dmgbuild settings for the Daisy Notes installer DMG: paper background with the
+# glossy blue arrow, DaisyNotes.app and /Applications flanking it, 100px icons.
 # Used by scripts/package.sh:  dmgbuild -s scripts/dmg-settings.py ...
 # Writes the .DS_Store directly — no Finder scripting, works headless in CI.
 
@@ -8,15 +8,15 @@ import os.path
 # The app itself is copied in by package.sh AFTER dmgbuild runs (ditto —
 # which dmgbuild uses — is denied writing app bundles to mounted images on
 # macOS 26). dmgbuild writes the styling: .DS_Store, background, symlink.
-background = defines.get("background", "/tmp/muse-dmg-bg.png")  # noqa: F821
+background = defines.get("background", "/tmp/daisynotes-dmg-bg.png")  # noqa: F821
 
-volume_name = "Muse"
+volume_name = "Daisy Notes"
 format = "UDRW"
 files = []
 symlinks = {"Applications": "/Applications"}
 
 icon_locations = {
-    "Muse.app": (150, 185),
+    "DaisyNotes.app": (150, 185),
     "Applications": (450, 185),
 }
 

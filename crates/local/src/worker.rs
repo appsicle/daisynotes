@@ -1,4 +1,4 @@
-//! The `"muse-local"` worker thread: a tokio runtime hosting the command
+//! The `"daisynotes-local"` worker thread: a tokio runtime hosting the command
 //! loop (inference, serialized) and download tasks (streamed off the loop).
 //!
 //! Inference runs inline in the command loop — one consideration at a time,
@@ -12,7 +12,7 @@ use parking_lot::Mutex;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc;
 
-use muse_api::{ClaudeReply, ClaudeRequest};
+use daisynotes_api::{ClaudeReply, ClaudeRequest};
 
 use crate::engine::Engine;
 use crate::{DownloadState, LocalError, LocalModel, installed_model, model_path, models_dir};
@@ -37,7 +37,7 @@ pub enum Command {
     },
 }
 
-/// Carrier for the caller's oneshot sender (mirrors muse-api's ReplyGuard).
+/// Carrier for the caller's oneshot sender (mirrors daisynotes-api's ReplyGuard).
 ///
 /// Invariant: a receiver handed out by `LocalHandle::request` always
 /// resolves. If this guard is dropped before [`ReplyGuard::fulfill`], `Drop`
@@ -66,11 +66,11 @@ impl Drop for ReplyGuard {
     }
 }
 
-/// Entry point of the `"muse-local"` thread.
+/// Entry point of the `"daisynotes-local"` thread.
 pub fn worker_main(rx: mpsc::UnboundedReceiver<Command>, state: Arc<Mutex<DownloadState>>) {
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
-        .thread_name("muse-local-io")
+        .thread_name("daisynotes-local-io")
         .enable_all()
         .build()
     {
@@ -78,7 +78,7 @@ pub fn worker_main(rx: mpsc::UnboundedReceiver<Command>, state: Arc<Mutex<Downlo
         Err(err) => {
             // Dropping `rx` resolves every queued and future request to
             // Err(LocalError::Channel) via ReplyGuard.
-            tracing::error!(%err, "muse-local: failed to build tokio runtime");
+            tracing::error!(%err, "daisynotes-local: failed to build tokio runtime");
             return;
         }
     };
@@ -131,7 +131,7 @@ fn run_inference(
         if engine.is_some() {
             tracing::info!(
                 model = wanted.display_name(),
-                "muse-local: better model installed; reloading"
+                "daisynotes-local: better model installed; reloading"
             );
             engine.take(); // free the old model before loading the new one
         }
@@ -151,7 +151,7 @@ fn run_inference(
 /// clean up their .part, so there is never anything to resume.)
 async fn run_download(model: LocalModel, state: Arc<Mutex<DownloadState>>) {
     let fail = |error: String| {
-        tracing::warn!(model = model.display_name(), %error, "muse-local: download failed");
+        tracing::warn!(model = model.display_name(), %error, "daisynotes-local: download failed");
         *state.lock() = DownloadState::Failed { model, error };
     };
     if let Err(err) = tokio::fs::create_dir_all(models_dir()).await {
@@ -167,7 +167,7 @@ async fn run_download(model: LocalModel, state: Arc<Mutex<DownloadState>>) {
                 let _ = tokio::fs::remove_file(&part_path).await;
                 return fail(format!("rename into place: {err}"));
             }
-            tracing::info!(model = model.display_name(), "muse-local: download complete");
+            tracing::info!(model = model.display_name(), "daisynotes-local: download complete");
             *state.lock() = DownloadState::Idle;
         }
         Err(error) => {

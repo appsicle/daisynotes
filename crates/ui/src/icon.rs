@@ -29,11 +29,13 @@ pub enum IconName {
     Undo,
     /// Settings gear.
     Settings,
+    /// Dropdown affordance.
+    ChevronDown,
 }
 
 impl IconName {
     /// All icons, for exhaustive tests and galleries.
-    pub const ALL: [IconName; 11] = [
+    pub const ALL: [IconName; 12] = [
         IconName::PanelLeft,
         IconName::Plus,
         IconName::Sun,
@@ -45,9 +47,10 @@ impl IconName {
         IconName::Trash,
         IconName::Undo,
         IconName::Settings,
+        IconName::ChevronDown,
     ];
 
-    /// The asset path served by [`crate::assets::MuseAssets`].
+    /// The asset path served by [`crate::assets::DaisyNotesAssets`].
     #[must_use]
     pub fn path(&self) -> SharedString {
         SharedString::new_static(match self {
@@ -62,6 +65,7 @@ impl IconName {
             IconName::Trash => "icons/trash-2.svg",
             IconName::Undo => "icons/undo-2.svg",
             IconName::Settings => "icons/settings.svg",
+            IconName::ChevronDown => "icons/chevron-down.svg",
         })
     }
 }
@@ -114,7 +118,7 @@ impl RenderOnce for Icon {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assets::MuseAssets;
+    use crate::assets::DaisyNotesAssets;
     use gpui::AssetSource;
 
     #[test]
@@ -122,7 +126,7 @@ mod tests {
         for name in IconName::ALL {
             let path = name.path();
             assert!(
-                matches!(MuseAssets.load(path.as_ref()), Ok(Some(_))),
+                matches!(DaisyNotesAssets.load(path.as_ref()), Ok(Some(_))),
                 "{name:?} -> {path} is not embedded"
             );
         }

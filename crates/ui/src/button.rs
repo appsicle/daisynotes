@@ -2,7 +2,7 @@
 //! slightly deeper when pressed. Calm, never loud.
 
 use gpui::{App, ClickEvent, ElementId, Pixels, SharedString, Window, div, prelude::*, px};
-use muse_theme::{ActiveTheme, layout};
+use daisynotes_theme::{ActiveTheme, layout};
 
 /// Shared click-handler shape for both button kinds.
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;

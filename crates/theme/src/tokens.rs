@@ -59,7 +59,7 @@ pub struct Tokens {
     pub ink_tertiary: Hsla,
     /// 1px borders and dividers.
     pub hairline: Hsla,
-    /// The one accent — rose clay. Caret, primary actions, selection base.
+    /// The one accent — vibrant light blue. Caret, primary actions, selection base.
     pub accent: Hsla,
     /// Text-selection highlight (accent with baked-in alpha).
     pub selection: Hsla,
@@ -97,7 +97,8 @@ fn hxa(hex: u32, alpha: f32) -> Hsla {
 /// muse ink, which is now derived from the accent (one hue story per theme).
 #[must_use]
 pub fn paper() -> Tokens {
-    let accent = hx(0xB86450);
+    // The landing-page accent: a clean, vibrant light blue (#1E90FF).
+    let accent = hx(0x1E90FF);
     let bg = hx(0xFAF8F5);
     let ink = hx(0x26221C);
     Tokens {
@@ -222,7 +223,7 @@ mod tests {
         let p = paper();
         assert!(close(p.bg, hx(0xFAF8F5)));
         assert!(close(p.ink, hx(0x26221C)));
-        assert!(close(p.accent, hx(0xB86450)));
+        assert!(close(p.accent, hx(0x1E90FF)));
         assert!((p.selection.a - 0.18).abs() < 1e-4);
 
         let d = dusk();
