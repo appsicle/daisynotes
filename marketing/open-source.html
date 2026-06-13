@@ -3,20 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Muse — how it works, under the hood</title>
-<meta name="description" content="The technical stack behind Muse: Rust, GPUI on Metal, Gemma 3 run locally through llama.cpp with grammar-constrained decoding. Open source, MIT, zero telemetry.">
+<title>DaisyNotes — how it works, under the hood</title>
+<meta name="description" content="The technical stack behind DaisyNotes: Rust, GPUI on Metal, Gemma 3 run locally through llama.cpp with grammar-constrained decoding. Open source, MIT, zero telemetry.">
 <meta name="color-scheme" content="light">
+<link rel="icon" type="image/png" href="/src/daisynotes-icon-128.png">
 <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
 <div id="app">
 
-  <nav class="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-5 pt-6 sm:px-14">
-    <a href="./index.html" class="text-[22px] font-medium tracking-tight text-ink">Muse</a>
-    <div class="flex items-center gap-2 text-sm">
-      <a href="./open-source.html" class="rounded-full px-4 py-2 text-ink">Open Source</a>
+  <nav class="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-3 px-4 pt-6 sm:px-14">
+    <a href="./index.html"
+       class="flex shrink-0 items-center gap-2 whitespace-nowrap text-[20px] font-medium tracking-tight text-ink sm:gap-2.5 sm:text-[22px]">
+      <img src="/src/daisynotes-icon-128.png" alt="" width="28" height="28"
+           class="h-7 w-7 rounded-[7px] sm:h-[30px] sm:w-[30px] sm:rounded-[8px]">
+      <span class="hidden sm:inline">DaisyNotes</span>
+    </a>
+    <div class="flex shrink-0 items-center gap-1 text-sm sm:gap-2">
+      <a href="./open-source.html"
+         class="whitespace-nowrap rounded-full px-3 py-2 text-ink sm:px-4">Open Source</a>
       <a href="https://github.com/appsicle/daisynotes/releases/latest/download/DaisyNotes.dmg"
-         class="rounded-full px-4 py-2 text-accent transition-colors hover:text-accent-strong">Download</a>
+         class="whitespace-nowrap rounded-full px-3 py-2 text-accent transition-colors hover:text-accent-strong sm:px-4">Download</a>
     </div>
   </nav>
 
