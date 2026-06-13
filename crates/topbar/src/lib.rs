@@ -8,7 +8,7 @@
 //! forward to the editor. It must not know about documents, entries,
 //! storage, or the agent.
 
-use gpui::{Context, EventEmitter, MouseButton, Window, div, prelude::*, px};
+use gpui::{Context, EventEmitter, MouseButton, Window, div, img, prelude::*, px};
 use daisynotes_commands::ToggleSidebar;
 use daisynotes_core::FontFamily;
 use daisynotes_theme::{Appearance, layout};
@@ -125,7 +125,14 @@ impl Render for Topbar {
                     |_, window, cx| window.dispatch_action(Box::new(ToggleSidebar), cx),
                 ))
             })
-            // The center (and right) stay empty on purpose. Calm.
+            // The center stays empty on purpose. Calm.
             .child(div().flex_1())
+            // The DaisyNotes mark, anchored top-right.
+            .child(
+                img("icons/daisynotes-mark.png")
+                    .flex_none()
+                    .size(px(24.))
+                    .rounded(px(7.)),
+            )
     }
 }

@@ -355,15 +355,11 @@ impl Workspace {
         }
     }
 
-    /// Set the orb, invalidating any pending state timers. Reading/Thinking
-    /// also light the sidebar's typing dots — a friend typing back.
+    /// Set the orb, invalidating any pending state timers.
     fn set_orb(&mut self, state: OrbState, cx: &mut Context<Self>) {
         self.orb_generation = self.orb_generation.wrapping_add(1);
         self.topbar
             .update(cx, |topbar, cx| topbar.set_orb(state, cx));
-        let thinking = matches!(state, OrbState::Reading | OrbState::Thinking);
-        self.sidebar
-            .update(cx, |sidebar, cx| sidebar.set_thinking(thinking, cx));
     }
 
     /// After a note blooms, let the orb rest again once the moment passes.

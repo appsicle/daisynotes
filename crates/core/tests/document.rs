@@ -33,10 +33,10 @@ fn spans_of(d: &Document) -> Vec<(Range<usize>, InlineStyle)> {
 
 #[test]
 fn title_is_first_nonempty_line_trimmed() {
-    assert_eq!(doc().title(), "New entry");
+    assert_eq!(doc().title(), "Untitled");
     assert_eq!(doc_with("   \n\n  Dear June  \nbody").title(), "Dear June");
     assert_eq!(doc_with("Only line").title(), "Only line");
-    assert_eq!(doc_with(" \n \n ").title(), "New entry");
+    assert_eq!(doc_with(" \n \n ").title(), "Untitled");
 }
 
 #[test]

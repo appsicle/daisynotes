@@ -95,11 +95,11 @@ impl Document {
         self.rope.to_string()
     }
 
-    /// First non-empty line, trimmed; `"New entry"` when there is none.
+    /// First non-empty line, trimmed; `"Untitled"` when there is none.
     pub fn title(&self) -> String {
         match self.title_line() {
             Some(idx) => self.rope.line(idx).to_string().trim().to_string(),
-            None => "New entry".to_string(),
+            None => "Untitled".to_string(),
         }
     }
 

@@ -64,12 +64,24 @@ else
 fi
 codesign --verify --strict "$APP"
 
-# Notarize + staple when credentials are stored (one-time:
+# Notarize + staple when credentials are stored. Prefer the daisynotes-notary
+# keychain profile; fall back to the legacy muse-notary profile from before the
+# rename (one-time setup:
 #   xcrun notarytool store-credentials daisynotes-notary --apple-id … --team-id … --password …)
-if [[ -n "$IDENTITY" ]] && xcrun notarytool history --keychain-profile daisynotes-notary >/dev/null 2>&1; then
-  echo "── notarizing ──"
+NOTARY_PROFILE=""
+if [[ -n "$IDENTITY" ]]; then
+  for _p in daisynotes-notary muse-notary; do
+    if xcrun notarytool history --keychain-profile "$_p" >/dev/null 2>&1; then
+      NOTARY_PROFILE="$_p"
+      break
+    fi
+  done
+fi
+
+if [[ -n "$NOTARY_PROFILE" ]]; then
+  echo "── notarizing app ($NOTARY_PROFILE) ──"
   ditto -c -k --keepParent "$APP" "$DIST/DaisyNotes-notarize.zip"
-  xcrun notarytool submit "$DIST/DaisyNotes-notarize.zip" --keychain-profile daisynotes-notary --wait
+  xcrun notarytool submit "$DIST/DaisyNotes-notarize.zip" --keychain-profile "$NOTARY_PROFILE" --wait
   xcrun stapler staple "$APP"
   rm -f "$DIST/DaisyNotes-notarize.zip"
 fi
@@ -106,9 +118,9 @@ rm -rf "$STAGE" "$(dirname "$RW")"
 # Staple the DMG itself: the app inside is already notarized, but notarizing
 # the final image and attaching its own ticket lets the downloaded .dmg clear
 # Gatekeeper offline (no round-trip to Apple on first open).
-if [[ -n "$IDENTITY" ]] && xcrun notarytool history --keychain-profile daisynotes-notary >/dev/null 2>&1; then
-  echo "── notarizing dmg ──"
-  xcrun notarytool submit "$DIST/DaisyNotes.dmg" --keychain-profile daisynotes-notary --wait
+if [[ -n "$NOTARY_PROFILE" ]]; then
+  echo "── notarizing dmg ($NOTARY_PROFILE) ──"
+  xcrun notarytool submit "$DIST/DaisyNotes.dmg" --keychain-profile "$NOTARY_PROFILE" --wait
   xcrun stapler staple "$DIST/DaisyNotes.dmg"
 fi
 

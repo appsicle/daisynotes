@@ -9,11 +9,9 @@
 
 mod age;
 
-use std::time::Duration;
-
 use gpui::{
     Animation, AnimationExt as _, AnyElement, ClickEvent, Context, EventEmitter, MouseButton,
-    SharedString, Window, div, img, prelude::*, px, svg,
+    SharedString, Window, div, prelude::*, px, svg,
 };
 use daisynotes_storage::EntrySummary;
 use daisynotes_theme::{ActiveTheme as _, layout, motion};
@@ -80,7 +78,7 @@ impl Row {
         Row {
             id: SharedString::from(entry.id.clone()),
             title: if untitled {
-                SharedString::new_static("New entry")
+                SharedString::new_static("Untitled")
             } else {
                 SharedString::from(entry.title.clone())
             },
@@ -100,8 +98,6 @@ pub struct Sidebar {
     selected: Option<String>,
     hovered: Option<SharedString>,
     sync: SyncGlyph,
-    /// Muse is reading/considering; the footer shows the typing dots.
-    thinking: bool,
 }
 
 impl EventEmitter<SidebarEvent> for Sidebar {}
@@ -114,7 +110,6 @@ impl Sidebar {
             selected: None,
             hovered: None,
             sync: SyncGlyph::default(),
-            thinking: false,
         }
     }
 
@@ -145,15 +140,6 @@ impl Sidebar {
     pub fn set_sync_glyph(&mut self, state: SyncGlyph, cx: &mut Context<Self>) {
         if self.sync != state {
             self.sync = state;
-            cx.notify();
-        }
-    }
-
-    /// Whether Muse is currently reading or considering; drives the
-    /// iMessage-style typing dots in the footer.
-    pub fn set_thinking(&mut self, thinking: bool, cx: &mut Context<Self>) {
-        if self.thinking != thinking {
-            self.thinking = thinking;
             cx.notify();
         }
     }
@@ -326,65 +312,32 @@ impl Sidebar {
         }
     }
 
-    /// The footer: a quiet Settings button on the left, and three bouncing
-    /// dots while Muse is reading or thinking — like a friend typing.
+    /// The footer: a single full-width Settings row, styled like an entry so
+    /// its hover tint fills the whole width.
     fn render_footer(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let tokens = cx.theme().tokens;
-        let hover_bg = tokens.hairline.opacity(0.5);
-        // The DaisyNotes mark — the same glossy daisy used for the app icon,
-        // marketing, and installer — sized up and anchored to the bottom left.
-        let mut footer = div()
-            .flex_none()
-            .h(px(44.))
-            .px(px(ROW_MARGIN_X))
-            .flex()
-            .items_center()
-            .gap(px(3.))
-            .child(
-                img("icons/daisynotes-mark.png")
-                    .flex_none()
-                    .size(px(28.))
-                    .rounded(px(8.)),
-            )
-            .child(div().flex_1());
-        if self.thinking {
-            for phase in 0..3u64 {
-                let dot = div()
-                    .flex_none()
-                    .size(px(6.))
-                    .rounded_full()
-                    .bg(tokens.ink_tertiary);
-                footer = footer.child(
-                    dot.with_animation(
-                        ("muse-typing-dot", phase as usize),
-                        Animation::new(Duration::from_millis(900)).repeat(),
-                        move |el, t| {
-                            // Staggered bounce: each dot leads the next by a
-                            // sixth of the cycle, rising 4px at its peak.
-                            let local = (t + phase as f32 / 6.0).fract();
-                            let lift = (local * std::f32::consts::PI).sin().max(0.0) * 4.0;
-                            el.mb(px(lift)).opacity(0.45 + 0.55 * (lift / 4.0))
-                        },
-                    ),
-                );
-            }
-            footer = footer.child(div().w(px(6.)));
-        }
-        // "Settings", right-anchored, plain text — no gear icon.
-        footer.child(
+        let hover_bg = tokens.hairline.opacity(0.35);
+
+        div().flex_none().pb(px(8.)).child(
             div()
                 .id("sidebar-settings")
+                .mx(px(ROW_MARGIN_X))
+                .h(px(ROW_H))
                 .px(px(ROW_PAD_X))
-                .py(px(4.))
                 .rounded(px(layout::RADIUS_SM))
+                .flex()
+                .items_center()
                 .cursor_pointer()
                 .hover(move |style| style.bg(hover_bg))
                 .on_click(|_, window, cx| {
                     window.dispatch_action(Box::new(daisynotes_commands::OpenSettings), cx);
                 })
-                .text_size(px(layout::UI_SMALL))
-                .text_color(tokens.ink_secondary)
-                .child("Settings"),
+                .child(
+                    div()
+                        .text_size(px(layout::UI_TEXT))
+                        .text_color(tokens.ink_secondary)
+                        .child("Settings"),
+                ),
         )
     }
 }

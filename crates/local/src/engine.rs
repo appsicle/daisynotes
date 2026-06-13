@@ -7,7 +7,7 @@
 //! fallible into [`LocalError::Engine`]; nothing panics.
 
 use std::num::NonZeroU32;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_backend::LlamaBackend;
@@ -34,6 +34,13 @@ const TOP_P: f32 = 0.95;
 
 /// Offload everything to Metal.
 const N_GPU_LAYERS: u32 = 1000;
+
+/// A short pause after each token's GPU decode so the app's Metal renderer
+/// can present a frame between forward passes. Without it a long generation
+/// keeps the GPU saturated and the UI (e.g. switching entries) stalls until
+/// the reply lands. ~2ms/token is invisible against a multi-second decode but
+/// hands the display a reliable window each step.
+const UI_BREATHE: Duration = Duration::from_millis(2);
 
 /// A resident llama.cpp model (plus the process-wide backend token).
 pub struct Engine {
@@ -121,6 +128,8 @@ impl Engine {
                 .map_err(|err| engine_err("batch add failed", &err))?;
             ctx.decode(&mut batch)
                 .map_err(|err| engine_err("token decode step failed", &err))?;
+            // Let the display present between forward passes (see UI_BREATHE).
+            std::thread::sleep(UI_BREATHE);
         }
 
         let mut text = String::from_utf8_lossy(&out_bytes).into_owned();

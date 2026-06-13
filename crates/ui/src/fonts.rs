@@ -8,9 +8,10 @@
 
 use std::borrow::Cow;
 
-/// All nine bundled font files: Literata, Inter, iA Writer Quattro, and
-/// JetBrains Mono — upright + italic variable instances of each — plus
-/// Sk-Modernist Regular, the UI chrome face.
+/// All seventeen bundled font files: Literata, Inter, iA Writer Quattro, and
+/// JetBrains Mono — upright + italic variable instances of each, plus discrete
+/// Bold + Bold-Italic faces instanced at wght=700 — plus Sk-Modernist Regular,
+/// the UI chrome face.
 #[must_use]
 pub fn all() -> Vec<Cow<'static, [u8]>> {
     vec![
@@ -32,6 +33,23 @@ pub fn all() -> Vec<Cow<'static, [u8]>> {
         Cow::Borrowed(
             include_bytes!("../../../assets/fonts/JetBrainsMono-Italic-Variable.ttf").as_slice(),
         ),
+        // Discrete Bold + Bold-Italic faces per family, instanced from the
+        // variable fonts at wght=700. gpui/font-kit selects a weight by
+        // matching among *loaded faces* and never applies the variable wght
+        // axis — without these, bold text has no face to match and renders at
+        // the regular weight. (Regenerate with scripts/make-bold-fonts.py.)
+        Cow::Borrowed(include_bytes!("../../../assets/fonts/Literata-Bold.ttf").as_slice()),
+        Cow::Borrowed(include_bytes!("../../../assets/fonts/Literata-BoldItalic.ttf").as_slice()),
+        Cow::Borrowed(include_bytes!("../../../assets/fonts/Inter-Bold.ttf").as_slice()),
+        Cow::Borrowed(include_bytes!("../../../assets/fonts/Inter-BoldItalic.ttf").as_slice()),
+        Cow::Borrowed(include_bytes!("../../../assets/fonts/iAWriterQuattro-Bold.ttf").as_slice()),
+        Cow::Borrowed(
+            include_bytes!("../../../assets/fonts/iAWriterQuattro-BoldItalic.ttf").as_slice(),
+        ),
+        Cow::Borrowed(include_bytes!("../../../assets/fonts/JetBrainsMono-Bold.ttf").as_slice()),
+        Cow::Borrowed(
+            include_bytes!("../../../assets/fonts/JetBrainsMono-BoldItalic.ttf").as_slice(),
+        ),
         Cow::Borrowed(
             include_bytes!("../../../assets/fonts/Sk-Modernist-Regular.otf").as_slice(),
         ),
@@ -43,9 +61,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn bundles_nine_real_font_files() {
+    fn bundles_all_real_font_files() {
         let fonts = all();
-        assert_eq!(fonts.len(), 9);
+        assert_eq!(fonts.len(), 17);
         for font in &fonts {
             // Every file should be a real font, not an empty placeholder:
             // TTF/OTF magic is 0x00010000 ('true' tables) or "OTTO".

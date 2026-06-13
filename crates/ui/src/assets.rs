@@ -119,6 +119,10 @@ mod tests {
     #[test]
     fn icons_look_like_lucide_svgs() {
         for &(name, bytes) in ICONS {
+            // The DaisyNotes mark is a raster logo, not a lucide line icon.
+            if !name.ends_with(".svg") {
+                continue;
+            }
             let text = std::str::from_utf8(bytes);
             assert!(
                 matches!(text, Ok(svg) if svg.contains("<svg") && svg.contains("viewBox=\"0 0 24 24\"")),
