@@ -2,10 +2,13 @@
 
 A quiet place to write, with a friend in the margin.
 
+**[daisynotes.app](https://daisynotes.app)** · [Download for macOS](https://github.com/appsicle/daisynotes/releases/latest/download/DaisyNotes.dmg)
+
 Daisy Notes is a native macOS writing app — Rust + [GPUI](https://www.gpui.rs) (Zed's
 GPU-accelerated UI framework) — with a companion who reads alongside you and,
-when there's genuinely something to say, leaves a small note pinned to your
-exact words or an iMessage-style reaction on the line that earned it.
+when there's genuinely something to say, leaves a small note: a quiet highlight
+on the exact passage that opens its card on hover, or a reaction emoji resting
+out in the margin. Most of the time it stays silent.
 
 - **On-device by default** — Gemma 3 via llama.cpp on Metal; nothing leaves
   your Mac. Add a Claude API key in Settings for the smartest margin friend.
@@ -26,18 +29,19 @@ DAISYNOTES_LOCAL_E2E=1 cargo test -p daisynotes-local --test e2e -- --ignored   
 
 ```sh
 scripts/package.sh   # release build → dist/DaisyNotes.app + DaisyNotes.dmg + DaisyNotes.zip
+scripts/release.sh   # the above, then tag the version and publish the GitHub release
 ```
 
-The script assembles the bundle (Info.plist + icns rendered by
-`scripts/make-icon.swift`), ad-hoc signs it, and produces a DMG and a
-notarization-shaped zip. For distribution beyond your own machines, replace
-the ad-hoc signature with a Developer ID certificate and notarize:
+`package.sh` assembles the bundle (Info.plist + icns from `scripts/make-icon.swift`).
+When a Developer ID certificate and a notary keychain profile are present, it
+signs with the Developer ID and **notarizes + staples both the app and the DMG**;
+otherwise it ad-hoc signs (fine for local runs).
 
-```sh
-codesign --force --deep --options runtime --sign "Developer ID Application: …" dist/DaisyNotes.app
-xcrun notarytool submit dist/DaisyNotes.zip --keychain-profile … --wait
-xcrun stapler staple dist/DaisyNotes.app
-```
+**Stable releases are cut locally**, not in CI — the certificate and notary
+credentials live in the local keychain. `scripts/release.sh` builds, notarizes,
+tags `v$VERSION`, and publishes the release whose `DaisyNotes.dmg` the landing
+page serves. CI only publishes ad-hoc pre-releases for testing. See
+[RELEASE.md](RELEASE.md) for the full runbook and one-time setup.
 
 ## Layout
 
@@ -56,4 +60,9 @@ xcrun stapler staple dist/DaisyNotes.app
 | `theme` | tokens, OKLCH machinery, presets |
 | `ui` | shared widgets, icons, fonts |
 
-`marketing/` holds the landing page (a single static `index.html`).
+`marketing/` is the landing page — a Vite static site deployed to Cloudflare
+Pages at [daisynotes.app](https://daisynotes.app) (see `.github/workflows/marketing.yml`).
+
+The companion concept is still called **"the muse"** throughout the code
+(`muse_flow`, `tokens.muse`, the `MuseNow` action) — only the product was
+renamed from Muse to Daisy Notes. See [CLAUDE.md](CLAUDE.md) / [AGENTS.md](AGENTS.md).
