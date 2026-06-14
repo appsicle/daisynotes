@@ -7,7 +7,7 @@
 
 use std::ops::Range;
 
-use crate::style::{InlineStyle, Voice};
+use crate::style::{ImageBlock, InlineStyle, ListAttr, Voice};
 
 /// Styles tiling a contiguous byte range, in absolute offsets.
 pub(crate) type Tiles = Vec<(Range<usize>, InlineStyle)>;
@@ -36,6 +36,18 @@ pub(crate) enum EditOp {
     },
     /// The entry voice changed.
     Voice { before: Voice, after: Voice },
+    /// The list attribute of the paragraph starting at `at` changed.
+    SetList {
+        at: usize,
+        before: Option<ListAttr>,
+        after: Option<ListAttr>,
+    },
+    /// The image block of the paragraph starting at `at` changed.
+    SetImage {
+        at: usize,
+        before: Option<ImageBlock>,
+        after: Option<ImageBlock>,
+    },
 }
 
 impl EditOp {
@@ -61,6 +73,16 @@ impl EditOp {
                 after: before.clone(),
             },
             EditOp::Voice { before, after } => EditOp::Voice {
+                before: *after,
+                after: *before,
+            },
+            EditOp::SetList { at, before, after } => EditOp::SetList {
+                at: *at,
+                before: *after,
+                after: *before,
+            },
+            EditOp::SetImage { at, before, after } => EditOp::SetImage {
+                at: *at,
                 before: *after,
                 after: *before,
             },
@@ -166,6 +188,30 @@ impl History {
             caret_after,
         });
         self.open = false;
+    }
+
+    /// Folds `ops` into the currently open group (so they reverse on the same
+    /// Cmd-Z) if one is open, updating its caret-after and marking it
+    /// non-mergeable; otherwise records them as a fresh non-mergeable group.
+    /// Used to attach a follow-up attribute change (list/image) to the text
+    /// edit that triggered it.
+    pub(crate) fn record_into_open(&mut self, ops: Vec<EditOp>, caret_after: Range<usize>) {
+        self.redo.clear();
+        if self.open
+            && let Some(top) = self.undo.last_mut()
+        {
+            top.ops.extend(ops);
+            top.caret_after = caret_after;
+            top.merge = Merge::None;
+        } else {
+            self.undo.push(Group {
+                ops,
+                merge: Merge::None,
+                caret_before: caret_after.clone(),
+                caret_after,
+            });
+            self.open = false;
+        }
     }
 
     /// Closes the open group; the next op starts a new one.

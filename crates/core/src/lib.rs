@@ -8,16 +8,23 @@
 mod anchor;
 mod document;
 mod history;
+mod images;
 mod json;
 mod nav;
+mod paras;
 mod spans;
 mod style;
 
 pub use anchor::AnchorId;
 pub use document::{Document, UndoOutcome};
+pub use images::ImageSet;
 pub use json::DocError;
+pub use paras::ParaList;
 pub use spans::SpanSet;
-pub use style::{FontFamily, Ink, InlineStyle, SIZE_STEPS, StyleToggle, Voice};
+pub use style::{
+    FontFamily, ImageBlock, Ink, InlineStyle, ListAttr, ListKind, MAX_LIST_INDENT, SIZE_STEPS,
+    StyleToggle, Voice,
+};
 
 /// Stable, time-sortable identifier for an entry (and its document).
 pub type EntryId = ulid::Ulid;

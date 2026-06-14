@@ -18,6 +18,7 @@
 //! - anything UI. No pixels, no spinners — a read here is the launch path.
 
 mod agent;
+mod blobs;
 mod entries;
 mod error;
 mod kv;
@@ -25,6 +26,7 @@ mod paths;
 mod schema;
 mod store;
 
+pub use blobs::Blob;
 pub use entries::{EntrySummary, SavedEntry};
 pub use error::{Result, StoreError};
 pub use paths::data_dir;

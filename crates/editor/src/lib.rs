@@ -15,25 +15,96 @@ mod overlays;
 mod policy;
 mod runs;
 
+use std::collections::HashMap;
 use std::ops::Range;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use gpui::{
-    App, Bounds, ClipboardItem, Context, EventEmitter, FocusHandle, Focusable, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, Pixels, Point, Render, ScrollWheelEvent, SharedString,
-    UTF16Selection, Window, div, prelude::*, px, size,
+    App, Bounds, ClipboardEntry, ClipboardItem, Context, EventEmitter, FocusHandle, Focusable,
+    Image, ImageFormat, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point, Render,
+    ScrollWheelEvent, SharedString, UTF16Selection, Window, div, prelude::*, px, size,
 };
 use daisynotes_commands as cmd;
-use daisynotes_core::{Document, InlineStyle, StyleToggle, Voice};
+use daisynotes_core::{
+    Document, ImageBlock, InlineStyle, ListAttr, ListKind, MAX_LIST_INDENT, StyleToggle, Voice,
+};
 
 use crate::anim::CaretSpring;
 use crate::clipboard::Envelope;
-use crate::layout::{ParaRec, Snapshot};
+use crate::layout::{IMAGE_VMARGIN, ParaRec, Snapshot};
 use crate::notes::NoteSlot;
 use crate::policy::{PendingStyle, Selection};
 
 pub use crate::notes::{Annotation, AnnotationTone};
+
+/// The list kind a typed line prefix triggers, if it is exactly `- `, `* `,
+/// or `<digits>. ` and nothing else.
+fn marker_kind(prefix: &str) -> Option<ListKind> {
+    if prefix == "- " || prefix == "* " {
+        return Some(ListKind::Bullet);
+    }
+    if let Some(num) = prefix.strip_suffix(". ")
+        && !num.is_empty()
+        && num.bytes().all(|b| b.is_ascii_digit())
+    {
+        return Some(ListKind::Number);
+    }
+    None
+}
+
+/// One outdent step: drop a level, or clear the list at the top level.
+fn outdent(attr: ListAttr) -> Option<ListAttr> {
+    if attr.indent > 0 {
+        Some(ListAttr {
+            indent: attr.indent - 1,
+            ..attr
+        })
+    } else {
+        None
+    }
+}
+
+/// The first image entry on the clipboard, if any.
+fn first_clipboard_image(item: &ClipboardItem) -> Option<Arc<Image>> {
+    item.entries().iter().find_map(|entry| match entry {
+        ClipboardEntry::Image(image) => Some(Arc::new(image.clone())),
+        ClipboardEntry::String(_) => None,
+    })
+}
+
+/// The MIME string for a GPUI image format (also used as the blob's `mime`).
+pub fn mime_of(format: ImageFormat) -> &'static str {
+    match format {
+        ImageFormat::Png => "image/png",
+        ImageFormat::Jpeg => "image/jpeg",
+        ImageFormat::Webp => "image/webp",
+        ImageFormat::Gif => "image/gif",
+        ImageFormat::Svg => "image/svg+xml",
+        ImageFormat::Bmp => "image/bmp",
+        ImageFormat::Tiff => "image/tiff",
+    }
+}
+
+/// The GPUI image format for a stored MIME string (the inverse of [`mime_of`]),
+/// used by the app to rebuild a decode source from a blob.
+pub fn format_of(mime: &str) -> ImageFormat {
+    match mime {
+        "image/jpeg" => ImageFormat::Jpeg,
+        "image/webp" => ImageFormat::Webp,
+        "image/gif" => ImageFormat::Gif,
+        "image/svg+xml" => ImageFormat::Svg,
+        "image/bmp" => ImageFormat::Bmp,
+        "image/tiff" => ImageFormat::Tiff,
+        _ => ImageFormat::Png,
+    }
+}
+
+/// Smallest an image may be resized to (display width, px).
+const IMAGE_MIN_W: f32 = 48.0;
+/// Half-extent of a resize handle's clickable area (px).
+const IMAGE_HANDLE_HIT: f32 = 11.0;
 
 /// Delay before the format pill blooms over a freshly settled selection.
 const PILL_DELAY: Duration = Duration::from_millis(120);
@@ -59,6 +130,15 @@ pub enum EditorEvent {
     },
     /// The editor's vertical scroll offset changed.
     ScrollChanged,
+    /// An image was pasted; the app persists its bytes as a blob.
+    ImagePasted {
+        /// Content-hash id (blob key and GPUI image id).
+        id: u64,
+        /// MIME type, e.g. `"image/png"`.
+        mime: SharedString,
+        /// The encoded image bytes.
+        bytes: Vec<u8>,
+    },
 }
 
 /// How a drag extends the selection, set by the initiating click count.
@@ -134,6 +214,16 @@ pub struct Editor {
     /// Which format-pill dropdown is open, if any.
     pill_menu: Option<PillMenu>,
 
+    /// Decode sources for embedded images, keyed by content-hash id. The app
+    /// fills these from blobs on entry open and from pastes; the element
+    /// decodes them lazily through GPUI's image cache.
+    image_sources: HashMap<u64, Arc<Image>>,
+    /// The paragraph offset of the currently selected image (click to select);
+    /// drives the resize handles and image-aware Delete.
+    selected_image: Option<usize>,
+    /// An in-progress corner-handle resize: `(paragraph offset, live width px)`.
+    image_drag: Option<(usize, f32)>,
+
     autoscroll_to: Option<usize>,
 }
 
@@ -182,6 +272,9 @@ impl Editor {
             pill_shown: false,
             pill_token: 0,
             pill_menu: None,
+            image_sources: HashMap::new(),
+            selected_image: None,
+            image_drag: None,
             autoscroll_to: None,
         }
     }
@@ -212,9 +305,19 @@ impl Editor {
         self.closing_card = None;
         self.coda = None;
         self.hide_pill(cx);
+        self.image_sources.clear();
+        self.selected_image = None;
+        self.image_drag = None;
         self.autoscroll_to = None;
         cx.emit(EditorEvent::SelectionChanged);
         cx.emit(EditorEvent::ScrollChanged);
+        cx.notify();
+    }
+
+    /// Provide decode sources for the document's image blocks (the app calls
+    /// this right after [`Editor::replace_document`], from stored blobs).
+    pub fn set_image_sources(&mut self, sources: HashMap<u64, Arc<Image>>, cx: &mut Context<Self>) {
+        self.image_sources = sources;
         cx.notify();
     }
 
@@ -324,6 +427,8 @@ impl Editor {
     // ── Selection & caret internals ────────────────────────────────────────
 
     fn set_selection(&mut self, sel: Selection, cx: &mut Context<Self>) {
+        // Any caret/selection activity deselects an image.
+        self.selected_image = None;
         if sel == self.sel {
             return;
         }
@@ -393,6 +498,36 @@ impl Editor {
         self.autoscroll_to = Some(offset);
     }
 
+    /// The image paragraph whose displayed bounds contain `content`, if any.
+    fn image_hit(snap: &Snapshot, content: (f32, f32)) -> Option<usize> {
+        let (x, y) = content;
+        snap.paras.iter().find_map(|para| {
+            let img = para.image.as_ref()?;
+            let top = para.y + IMAGE_VMARGIN;
+            (x >= 0.0 && x <= img.w && y >= top && y <= top + img.h)
+                .then_some(para.span.range.start)
+        })
+    }
+
+    /// The selected image's current display width if `content` is on one of
+    /// its four corner handles (used to start a resize).
+    fn image_handle_hit(&self, snap: &Snapshot, para: usize, content: (f32, f32)) -> Option<f32> {
+        let placed = snap.paras.iter().find(|p| p.span.range.start == para)?;
+        let img = placed.image.as_ref()?;
+        let top = placed.y + IMAGE_VMARGIN;
+        let (x, y) = content;
+        let corners = [
+            (0.0, top),
+            (img.w, top),
+            (0.0, top + img.h),
+            (img.w, top + img.h),
+        ];
+        corners
+            .iter()
+            .any(|(hx, hy)| (x - hx).abs() <= IMAGE_HANDLE_HIT && (y - hy).abs() <= IMAGE_HANDLE_HIT)
+            .then_some(img.w)
+    }
+
     /// The visual row containing `offset` (falls back to the logical
     /// paragraph before the first layout).
     fn visual_row(&self, offset: usize) -> Range<usize> {
@@ -414,12 +549,28 @@ impl Editor {
         if range.is_empty() && new_text.is_empty() {
             return;
         }
+        // Typing into an image's own (empty) paragraph would paint the text
+        // under the image. Keep the image a block on its own line: append a
+        // newline so the image slides down to the next paragraph, while the
+        // caret stays right after the typed text (not the synthetic newline).
+        let image_split = range.is_empty()
+            && !new_text.is_empty()
+            && !new_text.contains('\n')
+            && self.doc.image_at_offset(range.start).is_some();
+        let split_text;
+        let insert_text: &str = if image_split {
+            split_text = format!("{new_text}\n");
+            &split_text
+        } else {
+            new_text
+        };
+
         let now = Instant::now();
         if policy::should_break_undo_group(self.last_edit.map(|at| now.duration_since(at))) {
             self.doc.break_undo_group();
         }
         // A newline is a paragraph boundary: close the typing run.
-        if new_text.contains('\n') {
+        if insert_text.contains('\n') {
             self.doc.break_undo_group();
         }
         let pending = self
@@ -428,13 +579,13 @@ impl Editor {
             .filter(|p| range.is_empty() && p.at == range.start && !new_text.is_empty());
 
         if range.is_empty() {
-            self.doc.insert(range.start, new_text);
+            self.doc.insert(range.start, insert_text);
         } else if new_text.is_empty() {
             self.doc.delete(range.clone());
         } else {
-            self.doc.replace(range.clone(), new_text);
+            self.doc.replace(range.clone(), insert_text);
         }
-        self.text.replace_range(range.clone(), new_text);
+        self.text.replace_range(range.clone(), insert_text);
         let caret = range.start + new_text.len();
 
         if let Some(pending) = pending {
@@ -452,7 +603,33 @@ impl Editor {
         self.set_selection(Selection::caret(caret), cx);
         self.goal_x = None;
         self.autoscroll_to = Some(caret);
+        // A typed space may complete a `- ` / `1. ` list marker.
+        if new_text == " " && range.is_empty() {
+            self.try_list_trigger(cx);
+        }
         cx.emit(EditorEvent::Edited);
+        cx.notify();
+    }
+
+    /// After a typed space, turn a leading `- ` / `* ` / `N. ` marker on an
+    /// otherwise-plain line into a real list paragraph (the marker text is
+    /// consumed; the attribute renders the bullet/number instead).
+    fn try_list_trigger(&mut self, cx: &mut Context<Self>) {
+        let caret = self.sel.head;
+        let line = self.doc.paragraph_range_at(caret);
+        if self.doc.para_attr(line.start).is_some() {
+            return;
+        }
+        let prefix = self.doc.slice(line.start..caret);
+        let Some(kind) = marker_kind(&prefix) else {
+            return;
+        };
+        self.doc.break_undo_group();
+        self.edit_replace(line.start..caret, "", cx);
+        // Fold the list attribute into the marker-delete's undo group so one
+        // Cmd-Z restores the `- `/`N. ` marker and clears the bullet together.
+        self.doc
+            .set_para_list_grouped(line.start, Some(ListAttr { kind, indent: 0 }));
         cx.notify();
     }
 
@@ -659,7 +836,25 @@ impl Editor {
             self.card = None;
             cx.notify();
         }
-        let offset = snap.offset_at(snap.to_content(event.position));
+        let content = snap.to_content(event.position);
+        // A corner handle of the selected image starts a resize.
+        if let Some(para) = self.selected_image
+            && let Some(width) = self.image_handle_hit(&snap, para, content)
+        {
+            self.image_drag = Some((para, width));
+            cx.notify();
+            return;
+        }
+        // Clicking an image selects it (and nothing else).
+        if let Some(para) = Self::image_hit(&snap, content) {
+            self.selected_image = Some(para);
+            self.is_selecting = false;
+            self.hide_pill(cx);
+            cx.notify();
+            return;
+        }
+        self.selected_image = None;
+        let offset = snap.offset_at(content);
         match event.click_count {
             1 => {
                 if event.modifiers.shift {
@@ -719,6 +914,18 @@ impl Editor {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // A resize in progress: the live width follows the cursor's x,
+        // clamped to a sane minimum and the column width. Height tracks the
+        // natural aspect in layout.
+        if let Some((para, _)) = self.image_drag {
+            if let Some(snap) = self.snapshot.clone() {
+                let (x, _) = snap.to_content(event.position);
+                let width = x.clamp(IMAGE_MIN_W, snap.wrap_width);
+                self.image_drag = Some((para, width));
+                cx.notify();
+            }
+            return;
+        }
         if self.is_selecting && event.dragging() {
             self.drag_point = Some(event.position);
             self.extend_to_point(event.position, cx);
@@ -753,6 +960,15 @@ impl Editor {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // Commit a resize: write the chosen width onto the block (undoable).
+        if let Some((para, width)) = self.image_drag.take() {
+            if let Some(mut block) = self.doc.image_at(para) {
+                block.width = width.round().max(1.0) as u32;
+                self.doc.set_image(para, Some(block));
+            }
+            cx.notify();
+            return;
+        }
         if !self.is_selecting {
             return;
         }
@@ -1003,10 +1219,16 @@ impl Editor {
         }
     }
 
-    fn on_paste(&mut self, _: &cmd::Paste, _: &mut Window, cx: &mut Context<Self>) {
+    fn on_paste(&mut self, _: &cmd::Paste, _window: &mut Window, cx: &mut Context<Self>) {
         let Some(item) = cx.read_from_clipboard() else {
             return;
         };
+        // An image on the clipboard embeds as a block; otherwise fall through
+        // to text (the system clipboard never carries both for one copy).
+        if let Some(image) = first_clipboard_image(&item) {
+            self.paste_image(image, cx);
+            return;
+        }
         let Some(text) = item.text() else {
             return;
         };
@@ -1044,6 +1266,38 @@ impl Editor {
         }
     }
 
+    /// Embed a pasted image on its own paragraph, leaving the caret on a fresh
+    /// line below it. The bytes are handed to the app (via `ImagePasted`) to
+    /// persist as a blob; the decode source is held in `image_sources`.
+    fn paste_image(&mut self, image: Arc<Image>, cx: &mut Context<Self>) {
+        let id = image.id();
+        let mime = SharedString::from(mime_of(image.format()));
+        // Natural dimensions resolve at layout time (decoding may only happen
+        // during prepaint); 0 means "unknown", so layout uses a default aspect
+        // until the bytes decode, then the real size.
+        let (w, h) = (0u32, 0u32);
+        let bytes = image.bytes.clone();
+        self.image_sources.insert(id, image);
+
+        self.doc.break_undo_group();
+        // Move onto a fresh line if the current one already has text.
+        let line = self.doc.paragraph_range_at(self.sel.head);
+        if line.start != line.end {
+            self.edit_replace(self.sel.head..self.sel.head, "\n", cx);
+        }
+        // Open a line below for the caret; the image lives on the line above.
+        let image_line = self.sel.head;
+        self.edit_replace(image_line..image_line, "\n", cx);
+        // Fold the image block into the newline-insert's undo group so one
+        // Cmd-Z removes the image and the line it created together.
+        self.doc
+            .set_image_grouped(image_line, Some(ImageBlock { id, w, h, width: 0 }));
+        self.after_doc_change();
+        cx.emit(EditorEvent::ImagePasted { id, mime, bytes });
+        cx.emit(EditorEvent::Edited);
+        cx.notify();
+    }
+
     fn on_select_all(&mut self, _: &cmd::SelectAll, _: &mut Window, cx: &mut Context<Self>) {
         self.set_selection(
             Selection {
@@ -1055,8 +1309,38 @@ impl Editor {
         self.goal_x = None;
     }
 
+    /// Remove a selected image and its line, undoably, parking the caret where
+    /// it was. Used by Delete/Backspace while an image is selected.
+    fn remove_image_at(&mut self, para: usize, cx: &mut Context<Self>) {
+        self.selected_image = None;
+        self.image_drag = None;
+        self.doc.break_undo_group();
+        self.doc.remove_image(para);
+        self.rebuild_text_full();
+        self.set_selection(Selection::caret(self.doc.clamp(para)), cx);
+        self.hide_pill(cx);
+        cx.emit(EditorEvent::Edited);
+        cx.notify();
+    }
+
     fn on_backspace(&mut self, _: &cmd::Backspace, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some(para) = self.selected_image {
+            self.remove_image_at(para, cx);
+            return;
+        }
         let range = self.sel.range();
+        // At the very start of a list item, Backspace outdents (then drops the
+        // list) rather than merging the line into the one above.
+        if range.is_empty() {
+            let line = self.doc.paragraph_range_at(range.start);
+            if range.start == line.start
+                && let Some(attr) = self.doc.para_attr(line.start)
+            {
+                self.doc.set_para_list(line.start, outdent(attr));
+                cx.notify();
+                return;
+            }
+        }
         if !range.is_empty() {
             self.edit_replace(range, "", cx);
         } else if range.start > 0 {
@@ -1065,7 +1349,51 @@ impl Editor {
         }
     }
 
+    fn on_indent(&mut self, _: &cmd::Indent, _: &mut Window, cx: &mut Context<Self>) {
+        self.adjust_list_indent(1, cx);
+    }
+
+    fn on_outdent(&mut self, _: &cmd::Outdent, _: &mut Window, cx: &mut Context<Self>) {
+        self.adjust_list_indent(-1, cx);
+    }
+
+    /// Step the indent of every list paragraph the selection touches by
+    /// `delta`, clamped to `0..=MAX_LIST_INDENT`. Plain paragraphs are left
+    /// untouched, so Tab/Shift-Tab only ever reshape lists.
+    fn adjust_list_indent(&mut self, delta: i32, cx: &mut Context<Self>) {
+        let range = self.sel.range();
+        let last = self.doc.paragraph_range_at(range.end).start;
+        let mut at = self.doc.paragraph_range_at(range.start).start;
+        let mut changed = false;
+        loop {
+            if let Some(attr) = self.doc.para_attr(at) {
+                let indent = (i32::from(attr.indent) + delta)
+                    .clamp(0, i32::from(MAX_LIST_INDENT)) as u8;
+                if indent != attr.indent {
+                    self.doc
+                        .set_para_list(at, Some(ListAttr { indent, ..attr }));
+                    changed = true;
+                }
+            }
+            if at >= last {
+                break;
+            }
+            let line_end = self.doc.paragraph_range_at(at).end;
+            if line_end >= self.doc.len() {
+                break;
+            }
+            at = line_end + 1;
+        }
+        if changed {
+            cx.notify();
+        }
+    }
+
     fn on_delete(&mut self, _: &cmd::Delete, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some(para) = self.selected_image {
+            self.remove_image_at(para, cx);
+            return;
+        }
         let range = self.sel.range();
         if !range.is_empty() {
             self.edit_replace(range, "", cx);
@@ -1117,12 +1445,33 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let caret = self.sel.head;
+        let line = self.doc.paragraph_range_at(caret);
+        if let Some(attr) = self.doc.para_attr(line.start) {
+            // Enter on an empty list item exits the list (outdent, then drop).
+            if line.start == line.end && self.sel.is_empty() {
+                self.doc.set_para_list(line.start, outdent(attr));
+                cx.notify();
+                return;
+            }
+            // A non-empty item splits; the continuation inherits the list.
+            self.edit_replace(self.sel.range(), "\n", cx);
+            let new_start = self.sel.head;
+            self.doc.set_para_list(new_start, Some(attr));
+            cx.notify();
+            return;
+        }
         self.edit_replace(self.sel.range(), "\n", cx);
     }
 
     /// Escape, two-step: first close transient overlays (card, then pill),
     /// then collapse the selection.
     fn on_cancel(&mut self, _: &cmd::Cancel, _: &mut Window, cx: &mut Context<Self>) {
+        if self.selected_image.take().is_some() {
+            self.image_drag = None;
+            cx.notify();
+            return;
+        }
         if self.card.is_some() {
             self.card = None;
             cx.notify();
@@ -1482,6 +1831,8 @@ impl Render for Editor {
             .on_action(cx.listener(Self::on_delete_word_backward))
             .on_action(cx.listener(Self::on_delete_to_line_start))
             .on_action(cx.listener(Self::on_insert_newline))
+            .on_action(cx.listener(Self::on_indent))
+            .on_action(cx.listener(Self::on_outdent))
             .on_action(cx.listener(Self::on_cancel))
             .on_action(cx.listener(Self::on_move_left))
             .on_action(cx.listener(Self::on_move_right))

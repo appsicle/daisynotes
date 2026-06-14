@@ -6,7 +6,8 @@ use gpui::KeyBinding;
 
 use crate::actions::{
     Backspace, Bold, Cancel, Copy, Cut, DecreaseSize, Delete, DeleteToLineStart,
-    DeleteWordBackward, IncreaseSize, InsertNewline, Italic, MoveDown, MoveLeft, MoveRight,
+    DeleteWordBackward, IncreaseSize, Indent, InsertNewline, Italic, MoveDown, MoveLeft, MoveRight,
+    Outdent,
     MoveToEnd, MoveToLineEnd, MoveToLineStart, MoveToStart, MoveUp, MoveWordLeft, MoveWordRight,
     MuseNow, NewEntry, OpenSettings, Paste, Quit, Redo, SelectAll, SelectDown, SelectLeft,
     SelectRight,
@@ -48,6 +49,9 @@ pub fn keybindings() -> Vec<KeyBinding> {
         KeyBinding::new("cmd-=", IncreaseSize, editor),
         KeyBinding::new("cmd-+", IncreaseSize, editor),
         KeyBinding::new("cmd--", DecreaseSize, editor),
+        // -- Editor: list indent --------------------------------------------
+        KeyBinding::new("tab", Indent, editor),
+        KeyBinding::new("shift-tab", Outdent, editor),
         // -- Editor: history -------------------------------------------------
         KeyBinding::new("cmd-z", Undo, editor),
         KeyBinding::new("cmd-shift-z", Redo, editor),
@@ -103,9 +107,9 @@ mod tests {
 
     #[test]
     fn keybindings_builds() {
-        // 7 workspace bindings + 39 editor bindings (IncreaseSize is bound
-        // twice: cmd-= and cmd-+).
-        assert_eq!(keybindings().len(), 46);
+        // 7 workspace bindings + 41 editor bindings (IncreaseSize is bound
+        // twice: cmd-= and cmd-+; Tab/Shift-Tab add Indent/Outdent).
+        assert_eq!(keybindings().len(), 48);
     }
 
     #[test]
@@ -121,6 +125,8 @@ mod tests {
             Strikethrough,
             IncreaseSize,
             DecreaseSize,
+            Indent,
+            Outdent,
             Undo,
             Redo,
             Copy,
@@ -154,7 +160,7 @@ mod tests {
             SelectToStart,
             SelectToEnd,
         ];
-        assert_eq!(expected.len(), 38);
+        assert_eq!(expected.len(), 40);
         for name in expected {
             assert!(bound.contains(name), "no keybinding for {name}");
         }

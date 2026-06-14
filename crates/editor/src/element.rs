@@ -15,10 +15,13 @@ use gpui::{
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, ScrollWheelEvent, SharedString, Style,
     TextAlign, TextRun, Window, WrappedLine, fill, point, px, quad, relative, size,
 };
-use daisynotes_core::{InlineStyle, Voice};
+use daisynotes_core::{FontFamily, InlineStyle, ListKind, Voice};
 use daisynotes_theme::{ActiveTheme, fonts, layout as metrics, motion};
 
-use crate::layout::{CodaSnap, LINE_HEIGHT_FACTOR, SnapDot, SnapPara, Snapshot};
+use crate::layout::{
+    CodaSnap, IMAGE_RADIUS, IMAGE_VMARGIN, LINE_HEIGHT_FACTOR, ListMarker, ImagePlacement, SnapDot,
+    SnapPara, Snapshot, list_inset,
+};
 use crate::notes::{self, NoteSlot};
 use crate::{Editor, EditorEvent, anim, runs};
 /// Minimum horizontal margin between the column and the window edge.
@@ -143,6 +146,10 @@ impl Editor {
         let doc = &self.doc;
         for rec in &mut self.paras {
             let visible = rec.span.visible();
+            // A list paragraph indents its text column, narrowing the wrap.
+            let inset = doc
+                .para_attr(rec.span.range.start)
+                .map_or(0.0, |a| list_inset(a.indent));
             let tiles: Vec<(Range<usize>, InlineStyle)> = doc
                 .spans()
                 .runs_in(visible.clone())
@@ -154,7 +161,7 @@ impl Editor {
                 let e = m.end.min(visible.end);
                 (s < e).then(|| s - visible.start..e - visible.start)
             });
-            let sig = para_sig(gsig, &tiles, marked_rel.as_ref());
+            let sig = para_sig(gsig, &tiles, marked_rel.as_ref(), inset);
             if rec.shaped.is_some() && rec.sig == sig {
                 continue;
             }
@@ -163,7 +170,7 @@ impl Editor {
                 rec.text.clone(),
                 px(voice.size),
                 &runs,
-                Some(px(wrap)),
+                Some(px((wrap - inset).max(40.0))),
                 None,
             ) {
                 Ok(mut lines) if !lines.is_empty() => {
@@ -184,16 +191,81 @@ impl Editor {
             rec.sig = sig;
         }
 
-        // Stack paragraph origins (prefix sums).
+        // Stack paragraph origins (prefix sums), resolving each list
+        // paragraph's inset and its marker. Number ordinals are counted per
+        // indent depth; a deeper level resets when the indent shallows, and
+        // any plain paragraph restarts numbering.
         let mut y = metrics::COLUMN_TOP_PAD;
         let mut paras = Vec::with_capacity(self.paras.len());
+        let mut counters: Vec<usize> = Vec::new();
         for rec in &self.paras {
-            let height = rec.rows.max(1) as f32 * line_height;
+            let (inset, marker) = match doc.para_attr(rec.span.range.start) {
+                Some(attr) => {
+                    let depth = usize::from(attr.indent);
+                    counters.truncate(depth + 1);
+                    while counters.len() <= depth {
+                        counters.push(0);
+                    }
+                    let marker = match attr.kind {
+                        ListKind::Bullet => {
+                            counters[depth] = 0;
+                            ListMarker::Bullet
+                        }
+                        ListKind::Number => {
+                            counters[depth] += 1;
+                            ListMarker::Number(counters[depth])
+                        }
+                    };
+                    (list_inset(attr.indent), Some(marker))
+                }
+                None => {
+                    counters.clear();
+                    (0.0, None)
+                }
+            };
+            // An image paragraph decodes its source (lazily, cached) and lays
+            // out at the column width preserving aspect; its height replaces
+            // the empty line's.
+            let image = doc.image_at(rec.span.range.start).map(|block| {
+                let data = self
+                    .image_sources
+                    .get(&block.id)
+                    .and_then(|src| src.clone().use_render_image(window, cx));
+                let (nw, nh) = match &data {
+                    Some(r) => {
+                        let s = r.size(0);
+                        (s.width.0.max(1) as f32, s.height.0.max(1) as f32)
+                    }
+                    None if block.w > 0 && block.h > 0 => (block.w as f32, block.h as f32),
+                    None => (640.0, 360.0),
+                };
+                // Width: a live drag wins, then the stored display width, then
+                // a fit-to-column default; height always follows the aspect.
+                let chosen = self
+                    .image_drag
+                    .filter(|(p, _)| *p == rec.span.range.start)
+                    .map(|(_, w)| w)
+                    .or_else(|| (block.width > 0).then_some(block.width as f32))
+                    .unwrap_or_else(|| wrap.min(nw));
+                let dw = chosen.clamp(40.0, wrap);
+                ImagePlacement {
+                    data,
+                    w: dw,
+                    h: dw * nh / nw,
+                }
+            });
+            let height = match &image {
+                Some(p) => p.h + IMAGE_VMARGIN * 2.0,
+                None => rec.rows.max(1) as f32 * line_height,
+            };
             paras.push(SnapPara {
                 span: rec.span.clone(),
                 y,
                 height,
                 line: rec.shaped.clone(),
+                inset,
+                marker,
+                image,
             });
             y += height;
         }
@@ -436,6 +508,15 @@ impl Editor {
             cx,
         );
         window.set_cursor_style(CursorStyle::IBeam, &prepaint.column);
+        // A grab cursor while dragging an image's peg, or hovering one.
+        if self.image_drag.is_some() {
+            window.set_cursor_style(CursorStyle::ClosedHand, &prepaint.column);
+        } else if let Some(para) = self.selected_image {
+            let content = snap.to_content(window.mouse_position());
+            if self.image_handle_hit(&snap, para, content).is_some() {
+                window.set_cursor_style(CursorStyle::OpenHand, &prepaint.column);
+            }
+        }
 
         let sel_range = self.sel.range();
         window.with_content_mask(Some(ContentMask { bounds }), |window| {
@@ -509,13 +590,109 @@ impl Editor {
                 }
             }
 
-            // Paragraphs: only the visible band pays paint cost.
+            // Paragraphs: only the visible band pays paint cost. A list
+            // paragraph paints its text inset and draws its marker in the
+            // gutter just left of the text.
+            let voice = self.doc.voice();
+            let em = snap.line_height / LINE_HEIGHT_FACTOR;
             for para in &snap.paras {
                 if para.y + para.height < snap.scroll || para.y > snap.scroll + viewport_h {
                     continue;
                 }
+                // An image paragraph paints its decoded frame, rounded, and
+                // skips the text/marker path.
+                if let Some(img) = &para.image {
+                    let top = para.y + IMAGE_VMARGIN;
+                    let r = px(IMAGE_RADIUS);
+                    let radii = Corners {
+                        top_left: r,
+                        top_right: r,
+                        bottom_left: r,
+                        bottom_right: r,
+                    };
+                    let img_bounds =
+                        Bounds::new(snap.to_window((0.0, top)), size(px(img.w), px(img.h)));
+                    if let Some(data) = &img.data {
+                        let _ = window.paint_image(img_bounds, radii, data.clone(), 0, false);
+                    }
+                    let start = para.span.range.start;
+                    let click_selected = self.selected_image == Some(start);
+                    // Covered by a text selection (Select All, drag-select):
+                    // wash it like selected text.
+                    let range_selected = !sel_range.is_empty()
+                        && sel_range.start <= start
+                        && sel_range.end >= para.span.range.end;
+                    if range_selected && !click_selected {
+                        window.paint_quad(
+                            fill(img_bounds, tokens.accent.alpha(0.22)).corner_radii(radii),
+                        );
+                    }
+                    // Click-selected: accent outline + four square corner pegs.
+                    if click_selected {
+                        window.paint_quad(quad(
+                            img_bounds,
+                            radii,
+                            tokens.accent.alpha(0.0),
+                            px(1.5),
+                            tokens.accent,
+                            BorderStyle::default(),
+                        ));
+                        let hs = 9.0_f32;
+                        let pegs = [
+                            (0.0, top),
+                            (img.w, top),
+                            (0.0, top + img.h),
+                            (img.w, top + img.h),
+                        ];
+                        for (hx, hy) in pegs {
+                            let o = snap.to_window((hx - hs / 2.0, hy - hs / 2.0));
+                            let peg = Bounds::new(o, size(px(hs), px(hs)));
+                            window.paint_quad(quad(
+                                peg,
+                                px(1.0),
+                                tokens.bg,
+                                px(1.5),
+                                tokens.accent,
+                                BorderStyle::default(),
+                            ));
+                        }
+                    }
+                    continue;
+                }
+                match para.marker {
+                    Some(ListMarker::Bullet) => {
+                        let d = em * 0.3;
+                        let cy = para.y + snap.line_height * 0.5;
+                        let origin = snap.to_window((para.inset - 13.0 - d / 2.0, cy - d / 2.0));
+                        window.paint_quad(
+                            fill(Bounds::new(origin, size(px(d), px(d))), tokens.ink_secondary)
+                                .corner_radii(px(d / 2.0)),
+                        );
+                    }
+                    Some(ListMarker::Number(n)) => {
+                        let label = SharedString::from(format!("{n}."));
+                        let run = TextRun {
+                            len: label.len(),
+                            font: content_font(voice),
+                            color: tokens.ink_secondary,
+                            background_color: None,
+                            underline: None,
+                            strikethrough: None,
+                        };
+                        let line = window.text_system().shape_line(
+                            label,
+                            px(voice.size),
+                            &[run],
+                            None,
+                        );
+                        let width = f32::from(line.width);
+                        let origin = snap.to_window((para.inset - 8.0 - width, para.y));
+                        let _ = line.paint(origin, px(snap.line_height), window, cx);
+                    }
+                    None => {}
+                }
                 if let Some(line) = &para.line {
-                    let origin = snap.to_window((0.0, para.y));
+                    let origin = snap.to_window((para.inset, para.y));
                     if line
                         .paint(origin, px(snap.line_height), TextAlign::default(), None, window, cx)
                         .is_err()
@@ -639,10 +816,15 @@ impl Editor {
             .notes
             .iter()
             .any(|slot| slot.withering.is_some() || slot.appeared.elapsed() < REACT_POP);
+        let images_loading = snap
+            .paras
+            .iter()
+            .any(|p| p.image.as_ref().is_some_and(|i| i.data.is_none()));
         let needs_frame = !self.spring.settled()
             || (focused && sel_range.is_empty())
             || coda_animating
             || dots_animating
+            || images_loading
             || (self.is_selecting && self.drag_point.is_some());
         if needs_frame {
             window.request_animation_frame();
@@ -782,6 +964,7 @@ fn para_sig(
     gsig: u64,
     tiles: &[(Range<usize>, InlineStyle)],
     marked: Option<&Range<usize>>,
+    inset: f32,
 ) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     gsig.hash(&mut hasher);
@@ -790,7 +973,27 @@ fn para_sig(
         style.hash(&mut hasher);
     }
     marked.hash(&mut hasher);
+    // The list inset narrows the wrap width, so a change re-shapes.
+    inset.to_bits().hash(&mut hasher);
     hasher.finish()
+}
+
+/// The content font for the entry voice — used to draw numbered-list markers
+/// so they match the paragraph text.
+fn content_font(voice: Voice) -> Font {
+    let family = match voice.family {
+        FontFamily::Literata => fonts::FONT_SERIF,
+        FontFamily::Inter => fonts::FONT_SANS,
+        FontFamily::Quattro => fonts::FONT_QUATTRO,
+        FontFamily::Mono => fonts::FONT_MONO,
+    };
+    Font {
+        family: family.into(),
+        features: FontFeatures::default(),
+        fallbacks: None,
+        weight: FontWeight(f32::from(voice.weight)),
+        style: FontStyle::Normal,
+    }
 }
 
 fn coda_sig(gsig: u64, body: &str) -> u64 {

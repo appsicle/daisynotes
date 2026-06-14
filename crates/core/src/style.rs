@@ -2,6 +2,41 @@
 
 use serde::{Deserialize, Serialize};
 
+/// The kind of a list paragraph: an unordered bullet or an ordered number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ListKind {
+    /// `- ` — an unordered bullet.
+    Bullet,
+    /// `1. ` — an ordered item; the displayed ordinal is computed at render.
+    Number,
+}
+
+/// A paragraph's list attributes: its kind and nesting depth (0 = top level).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ListAttr {
+    /// Bullet or number.
+    pub kind: ListKind,
+    /// Indent depth; Tab/Shift-Tab step this within `0..=MAX_LIST_INDENT`.
+    pub indent: u8,
+}
+
+/// The deepest a list may nest (sub-sub-…-items beyond this are clamped).
+pub const MAX_LIST_INDENT: u8 = 8;
+
+/// A pasted image, living on its own paragraph. `id` is the content hash of
+/// the encoded bytes (matching the blob key and the GPUI image id); `w`/`h`
+/// are the natural pixel dimensions, used to lay out a stable height before
+/// the bytes are decoded. `width` is the user's chosen display width in px
+/// (0 means "fit the column"); height always follows the natural aspect.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ImageBlock {
+    pub id: u64,
+    pub w: u32,
+    pub h: u32,
+    pub width: u32,
+}
+
 /// The four content font families an entry's voice can use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

@@ -11,10 +11,12 @@ use ropey::Rope;
 use crate::EntryId;
 use crate::anchor::{AnchorId, AnchorMap};
 use crate::history::{EditOp, History, Tiles};
+use crate::images::ImageSet;
 use crate::json::{DocDto, DocError};
 use crate::nav;
+use crate::paras::ParaList;
 use crate::spans::SpanSet;
-use crate::style::{InlineStyle, StyleToggle, Voice};
+use crate::style::{ImageBlock, InlineStyle, ListAttr, StyleToggle, Voice, MAX_LIST_INDENT};
 
 /// Where the selection should land after an undo or redo.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,6 +32,8 @@ pub struct Document {
     rope: Rope,
     voice: Voice,
     spans: SpanSet,
+    paras: ParaList,
+    images: ImageSet,
     version: u64,
     history: History,
     anchors: AnchorMap,
@@ -43,6 +47,8 @@ impl Document {
             rope: Rope::new(),
             voice: Voice::default(),
             spans: SpanSet::new(),
+            paras: ParaList::new(),
+            images: ImageSet::new(),
             version: 0,
             history: History::default(),
             anchors: AnchorMap::default(),
@@ -350,11 +356,161 @@ impl Document {
         self.anchors.release(id);
     }
 
+    // ── List paragraphs ────────────────────────────────────────────────────
+
+    /// The list attribute of the paragraph that *starts* at `para_start`, if
+    /// any. `para_start` should be a line start (see [`Document::paragraph_range_at`]).
+    pub fn para_attr(&self, para_start: usize) -> Option<ListAttr> {
+        self.paras.get(para_start)
+    }
+
+    /// The list attribute of the paragraph containing `offset`, if any.
+    pub fn list_attr_at(&self, offset: usize) -> Option<ListAttr> {
+        self.paras.get(self.paragraph_range_at(offset).start)
+    }
+
+    /// True when no paragraph is a list item.
+    pub fn has_lists(&self) -> bool {
+        !self.paras.is_empty()
+    }
+
+    /// Sets (or clears, with `None`) the list attribute of the paragraph
+    /// starting at `para_start`. Undoable; a no-op when unchanged.
+    pub fn set_para_list(&mut self, para_start: usize, attr: Option<ListAttr>) {
+        let at = self.clamp(para_start);
+        let before = self.paras.get(at);
+        if before == attr {
+            return;
+        }
+        let op = EditOp::SetList {
+            at,
+            before,
+            after: attr,
+        };
+        self.apply_edit(&op);
+        self.history.record_other(vec![op], at..at, at..at);
+        self.version += 1;
+    }
+
+    /// Like [`Document::set_para_list`], but folds the attribute change into the
+    /// open undo group so the `- `/`N. ` marker delete and the list attribute
+    /// reverse together on one Cmd-Z (instead of leaving a bare empty line).
+    pub fn set_para_list_grouped(&mut self, para_start: usize, attr: Option<ListAttr>) {
+        let at = self.clamp(para_start);
+        let before = self.paras.get(at);
+        if before == attr {
+            return;
+        }
+        let op = EditOp::SetList {
+            at,
+            before,
+            after: attr,
+        };
+        self.apply_edit(&op);
+        self.history.record_into_open(vec![op], at..at);
+        self.version += 1;
+    }
+
+    // ── Image blocks ───────────────────────────────────────────────────────
+
+    /// The image of the paragraph starting at `para_start`, if any.
+    pub fn image_at(&self, para_start: usize) -> Option<ImageBlock> {
+        self.images.get(para_start)
+    }
+
+    /// The image of the paragraph containing `offset`, if any.
+    pub fn image_at_offset(&self, offset: usize) -> Option<ImageBlock> {
+        self.images.get(self.paragraph_range_at(offset).start)
+    }
+
+    /// True when any paragraph holds an image.
+    pub fn has_images(&self) -> bool {
+        !self.images.is_empty()
+    }
+
+    /// Every image block in the document (for the app to load their blobs).
+    pub fn image_blocks(&self) -> Vec<ImageBlock> {
+        self.images.iter().map(|(_, block)| block).collect()
+    }
+
+    /// Sets (or clears) the image of the paragraph starting at `para_start`.
+    /// Undoable; a no-op when unchanged. The caller is responsible for the
+    /// paragraph itself being empty.
+    pub fn set_image(&mut self, para_start: usize, block: Option<ImageBlock>) {
+        let at = self.clamp(para_start);
+        let before = self.images.get(at);
+        if before == block {
+            return;
+        }
+        let op = EditOp::SetImage {
+            at,
+            before,
+            after: block,
+        };
+        self.apply_edit(&op);
+        self.history.record_other(vec![op], at..at, at..at);
+        self.version += 1;
+    }
+
+    /// Like [`Document::set_image`], but folds into the open undo group so a
+    /// pasted image and the newline that created its line reverse together on
+    /// one Cmd-Z (instead of leaving a stray blank line behind).
+    pub fn set_image_grouped(&mut self, para_start: usize, block: Option<ImageBlock>) {
+        let at = self.clamp(para_start);
+        let before = self.images.get(at);
+        if before == block {
+            return;
+        }
+        let op = EditOp::SetImage {
+            at,
+            before,
+            after: block,
+        };
+        self.apply_edit(&op);
+        self.history.record_into_open(vec![op], at..at);
+        self.version += 1;
+    }
+
+    /// Remove the image at `para_start` and its (empty) line, as one undoable
+    /// group: a `SetImage` clearing the block, then a `Delete` of the line's
+    /// trailing newline. Undo restores both byte-exactly.
+    pub fn remove_image(&mut self, para_start: usize) {
+        let at = self.clamp(para_start);
+        let Some(block) = self.images.get(at) else {
+            return;
+        };
+        let mut ops = Vec::with_capacity(2);
+        let clear = EditOp::SetImage {
+            at,
+            before: Some(block),
+            after: None,
+        };
+        self.apply_edit(&clear);
+        ops.push(clear);
+        // Drop the newline that forms the image's empty line, if present.
+        // Use `byte` (not `byte_slice`) so a stray non-empty line never slices
+        // a multi-byte char boundary and panics.
+        if at < self.rope.len_bytes() && self.rope.byte(at) == b'\n' {
+            let del = self.delete_op(at..at + 1);
+            self.apply_edit(&del);
+            ops.push(del);
+        }
+        self.history.record_other(ops, at..at, at..at);
+        self.version += 1;
+    }
+
     // ── Serialization ──────────────────────────────────────────────────────
 
-    /// Serializes as versioned JSON: `{"v":1,"voice":…,"text":…,"spans":[…]}`.
+    /// Serializes as versioned JSON: `{"v":1,"voice":…,"text":…,"spans":[…]}`
+    /// plus an optional `paras` array (omitted when there are no lists).
     pub fn to_json(&self) -> String {
-        DocDto::encode(self.voice, self.rope.to_string(), &self.spans)
+        DocDto::encode(
+            self.voice,
+            self.rope.to_string(),
+            &self.spans,
+            &self.paras,
+            &self.images,
+        )
     }
 
     /// Reads a document serialized by [`Document::to_json`]. History and
@@ -368,11 +524,42 @@ impl Document {
                 spans.splice(range.clone(), &[(range, span.style)]);
             }
         }
+        let mut paras = ParaList::new();
+        for para in &dto.paras {
+            if DocDto::valid_para(&dto.text, para.at) {
+                paras.set(
+                    para.at,
+                    Some(ListAttr {
+                        kind: para.kind,
+                        // Clamp a corrupt or newer-version indent so it can't
+                        // push the text column off-screen or grow the marker
+                        // counter unbounded at render.
+                        indent: para.indent.min(MAX_LIST_INDENT),
+                    }),
+                );
+            }
+        }
+        let mut images = ImageSet::new();
+        for image in &dto.images {
+            if DocDto::valid_image(&dto.text, image.at) {
+                images.set(
+                    image.at,
+                    Some(ImageBlock {
+                        id: image.id,
+                        w: image.w,
+                        h: image.h,
+                        width: image.width,
+                    }),
+                );
+            }
+        }
         Ok(Self {
             id,
             rope: Rope::from_str(&dto.text),
             voice: dto.voice,
             spans,
+            paras,
+            images,
             version: 0,
             history: History::default(),
             anchors: AnchorMap::default(),
@@ -401,6 +588,8 @@ impl Document {
                 // inserts, captured tiles on undo-of-delete) is what makes
                 // undo restore spans byte-exactly.
                 self.spans.splice(*at..*at + text.len(), tiles);
+                self.paras.transform_insert(*at, text.len());
+                self.images.transform_insert(*at, text.len());
                 self.anchors.transform_insert(*at, text.len());
             }
             EditOp::Delete { at, text, .. } => {
@@ -409,6 +598,8 @@ impl Document {
                 let char_end = self.rope.byte_to_char(range.end);
                 self.rope.remove(char_start..char_end);
                 self.spans.transform_delete(range.clone());
+                self.paras.transform_delete(range.clone());
+                self.images.transform_delete(range.clone());
                 self.anchors.transform_delete(range);
             }
             EditOp::Restyle { range, after, .. } => {
@@ -416,6 +607,12 @@ impl Document {
             }
             EditOp::Voice { after, .. } => {
                 self.voice = *after;
+            }
+            EditOp::SetList { at, after, .. } => {
+                self.paras.set(*at, *after);
+            }
+            EditOp::SetImage { at, after, .. } => {
+                self.images.set(*at, *after);
             }
         }
     }
@@ -464,5 +661,59 @@ fn toggled_tiles(before: &Tiles, toggle: StyleToggle) -> Tiles {
             map(&|s| s.strike = on)
         }
         StyleToggle::Ink(ink) => map(&|s| s.ink = ink),
+    }
+}
+
+#[cfg(test)]
+mod undo_group_tests {
+    use super::*;
+    use crate::style::{ListAttr, ListKind};
+
+    fn doc() -> Document {
+        Document::new(ulid::Ulid::nil())
+    }
+
+    fn bullet() -> ListAttr {
+        ListAttr {
+            kind: ListKind::Bullet,
+            indent: 0,
+        }
+    }
+
+    #[test]
+    fn list_trigger_undo_is_one_step() {
+        let mut d = doc();
+        d.insert(0, "- "); // the typed marker (its own undo group)
+        d.break_undo_group();
+        d.delete(0..2); // consume the marker — leaves the group open
+        d.set_para_list_grouped(0, Some(bullet()));
+        assert_eq!(d.para_attr(0), Some(bullet()));
+        assert_eq!(d.rope().to_string(), "");
+        // One undo restores the marker text AND clears the bullet together.
+        d.undo();
+        assert_eq!(d.rope().to_string(), "- ");
+        assert_eq!(d.para_attr(0), None);
+    }
+
+    #[test]
+    fn image_paste_undo_is_one_step() {
+        let mut d = doc();
+        d.break_undo_group();
+        d.insert(0, "\n"); // the image's line — leaves the group open
+        d.set_image_grouped(
+            0,
+            Some(ImageBlock {
+                id: 7,
+                w: 0,
+                h: 0,
+                width: 0,
+            }),
+        );
+        assert!(d.image_at(0).is_some());
+        assert_eq!(d.rope().to_string(), "\n");
+        // One undo removes the image AND the line it created together.
+        d.undo();
+        assert_eq!(d.rope().to_string(), "");
+        assert!(d.image_at(0).is_none());
     }
 }

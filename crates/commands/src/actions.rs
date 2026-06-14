@@ -50,6 +50,10 @@ gpui::actions!(
         IncreaseSize,
         /// Steps the entry's base font size down one notch.
         DecreaseSize,
+        /// Indents the current list paragraph(s) one level (Tab).
+        Indent,
+        /// Outdents the current list paragraph(s) one level (Shift-Tab).
+        Outdent,
         /// Undoes the last edit group.
         Undo,
         /// Redoes the last undone edit group.

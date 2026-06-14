@@ -330,6 +330,7 @@ impl Workspace {
             .update(cx, |editor, cx| editor.set_date_label(label, cx));
 
         self.restore_agent_state(cx);
+        self.load_image_sources(cx);
 
         window.focus(&self.editor.focus_handle(cx));
     }
@@ -404,7 +405,37 @@ impl Workspace {
             }
             EditorEvent::AnnotationDismissed { id } => self.on_annotation_dismissed(*id, cx),
             EditorEvent::SelectionChanged => {}
+            EditorEvent::ImagePasted { id, mime, bytes } => {
+                if let Err(err) = self.store.put_blob(*id, mime, bytes) {
+                    tracing::error!(%err, "failed to persist pasted image");
+                }
+            }
         }
+    }
+
+    /// Rebuild the editor's image decode sources from stored blobs for the
+    /// open document's image blocks (called right after an entry opens).
+    fn load_image_sources(&mut self, cx: &mut Context<Self>) {
+        let blocks = self.editor.read(cx).document().image_blocks();
+        if blocks.is_empty() {
+            return;
+        }
+        let mut sources: HashMap<u64, Arc<gpui::Image>> = HashMap::new();
+        for block in blocks {
+            if sources.contains_key(&block.id) {
+                continue;
+            }
+            match self.store.get_blob(block.id) {
+                Ok(Some(blob)) => {
+                    let format = daisynotes_editor::format_of(&blob.mime);
+                    sources.insert(block.id, Arc::new(gpui::Image::from_bytes(format, blob.bytes)));
+                }
+                Ok(None) => tracing::warn!(id = block.id, "image blob missing"),
+                Err(err) => tracing::error!(%err, "failed to load image blob"),
+            }
+        }
+        self.editor
+            .update(cx, |editor, cx| editor.set_image_sources(sources, cx));
     }
 
     fn on_sidebar_event(

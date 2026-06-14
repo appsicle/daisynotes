@@ -15,6 +15,17 @@ use gpui::{Bounds, Pixels, Point, ShapedLine, SharedString, WrappedLine, point, 
 /// Content line height as a multiple of the voice size (PLAN §8).
 pub(crate) const LINE_HEIGHT_FACTOR: f32 = 1.65;
 
+/// Left space a list paragraph reserves for its marker (bullet/number),
+/// before the indent steps add to it.
+pub(crate) const LIST_GUTTER: f32 = 24.0;
+/// Extra left inset per list nesting level.
+pub(crate) const LIST_INDENT_STEP: f32 = 22.0;
+
+/// The text-column left inset for a list paragraph at the given indent.
+pub(crate) fn list_inset(indent: u8) -> f32 {
+    LIST_GUTTER + f32::from(indent) * LIST_INDENT_STEP
+}
+
 /// One rectangle of a selection highlight, in content coordinates. Rects for
 /// a selection tile vertically with no gaps; only the outer silhouette is
 /// rounded (`round_top` on the first rect, `round_bottom` on the last).
@@ -141,13 +152,40 @@ pub(crate) fn reuse_paragraphs(mut old: Vec<ParaRec>, text: &str) -> Vec<ParaRec
     out
 }
 
+/// The rendered marker of a list paragraph; `Number` carries its computed
+/// ordinal (1-based) for the run it belongs to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ListMarker {
+    Bullet,
+    Number(usize),
+}
+
+/// Vertical breathing room above and below an embedded image.
+pub(crate) const IMAGE_VMARGIN: f32 = 10.0;
+/// Corner radius for embedded images (square — no rounding).
+pub(crate) const IMAGE_RADIUS: f32 = 0.0;
+
+/// An image paragraph as placed by the last layout pass: the decoded frame
+/// (None until the bytes finish decoding) and its display size in px.
+#[derive(Clone)]
+pub(crate) struct ImagePlacement {
+    pub data: Option<std::sync::Arc<gpui::RenderImage>>,
+    pub w: f32,
+    pub h: f32,
+}
+
 /// A paragraph as placed by the last layout pass. `y` is in content
-/// coordinates (y = 0 at the very top of the scrolled content).
+/// coordinates (y = 0 at the very top of the scrolled content). `inset` is the
+/// left offset of the text column for a list paragraph (0 for plain text); all
+/// x-geometry below is measured from the column's left edge **plus** `inset`.
 pub(crate) struct SnapPara {
     pub span: ParaSpan,
     pub y: f32,
     pub height: f32,
     pub line: Option<WrappedLine>,
+    pub inset: f32,
+    pub marker: Option<ListMarker>,
+    pub image: Option<ImagePlacement>,
 }
 
 /// An annotation marker as placed by the last layout pass. `center` is the
@@ -263,7 +301,7 @@ impl Snapshot {
             .min(para.span.visible().len());
         let rows = Self::rows(para);
         let (row_idx, row) = Self::row_for_index(&rows, rel);
-        let x = Self::x_in_row(para, row.0, rel);
+        let x = Self::x_in_row(para, row.0, rel) + para.inset;
         (x, para.y + row_idx as f32 * self.line_height)
     }
 
@@ -317,7 +355,7 @@ impl Snapshot {
         let Some(line) = &para.line else {
             return para.span.range.start;
         };
-        let rel_point = point(px(x.max(0.0)), px((y - para.y).max(0.0)));
+        let rel_point = point(px((x - para.inset).max(0.0)), px((y - para.y).max(0.0)));
         let rel = line
             .closest_index_for_position(rel_point, px(self.line_height))
             .unwrap_or_else(|nearest| nearest)
@@ -366,8 +404,8 @@ impl Snapshot {
                 if s > e || (s == e && !(newline_selected && last_row)) {
                     continue;
                 }
-                let x1 = Self::x_in_row(para, row.0, s - visible.start);
-                let mut x2 = Self::x_in_row(para, row.0, e - visible.start);
+                let x1 = Self::x_in_row(para, row.0, s - visible.start) + para.inset;
+                let mut x2 = Self::x_in_row(para, row.0, e - visible.start) + para.inset;
                 // The selection continues past this row's end: a wrap on an
                 // inner row, or the trailing newline on the last row.
                 let continues = if last_row {
@@ -508,6 +546,9 @@ mod tests {
                 y: idx as f32 * line_height,
                 height: line_height,
                 line: None,
+                inset: 0.0,
+                marker: None,
+                image: None,
             })
             .collect::<Vec<_>>();
         let content_height = paras.len() as f32 * line_height;

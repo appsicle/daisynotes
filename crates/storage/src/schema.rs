@@ -44,6 +44,13 @@ const MIGRATIONS: &[&str] = &[
         key    TEXT PRIMARY KEY,
         value  TEXT NOT NULL
     );",
+    // v2 — content-addressed image blobs. `id` is the u64 content hash stored
+    // as an i64 (SQLite has no unsigned); documents reference blobs by id.
+    "CREATE TABLE blobs (
+        id     INTEGER PRIMARY KEY,
+        mime   TEXT NOT NULL,
+        bytes  BLOB NOT NULL
+    );",
 ];
 
 /// Apply every migration the database hasn't seen yet. Idempotent: a second
