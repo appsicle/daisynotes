@@ -23,6 +23,13 @@ const AUTOSAVE_DEBOUNCE: Duration = Duration::from_millis(400);
 /// How long the sidebar's "saved" check lingers after a flush.
 const GLYPH_LINGER: Duration = Duration::from_secs(2);
 
+/// The little daisy that opens the welcome note — the image-embed feature,
+/// shown in place. Stored as a blob so the editor loads it like any pasted
+/// image; the id is a fixed key (not a content hash; this image never collides
+/// with a user's pasted ones).
+const WELCOME_IMAGE: &[u8] = include_bytes!("../../../assets/icons/daisynotes-mark.png");
+const WELCOME_IMAGE_ID: u64 = 0xDA15_0000_0000_0001;
+
 /// Settings read once at launch, before the window opens.
 #[derive(Clone, Copy, Debug)]
 pub struct Boot {
@@ -231,6 +238,16 @@ impl Workspace {
         if let Err(err) = self.store.upsert_entry(&entry) {
             tracing::error!(%err, "failed to seed welcome entry");
         }
+        // The welcome image blob (the doc already references it) and the muse's
+        // opening notes, so both features show on first open.
+        if let Err(err) = self.store.put_blob(WELCOME_IMAGE_ID, "image/png", WELCOME_IMAGE) {
+            tracing::error!(%err, "failed to store welcome image");
+        }
+        if let Ok(json) = serde_json::to_string(&welcome_notes())
+            && let Err(err) = self.store.save_notes(&entry.id, &json)
+        {
+            tracing::error!(%err, "failed to seed welcome notes");
+        }
         entry.id
     }
 }
@@ -239,7 +256,7 @@ impl Workspace {
 /// off in place. Pure (no storage), so its formatting/list offsets are unit
 /// tested.
 pub(crate) fn welcome_document(id: daisynotes_core::EntryId) -> Document {
-    use daisynotes_core::{Ink, ListAttr, ListKind, StyleToggle};
+    use daisynotes_core::{ImageBlock, Ink, ListAttr, ListKind, StyleToggle};
 
     let mut doc = Document::new(id);
 
@@ -300,7 +317,46 @@ This page is yours. Clear it, or keep it. Either way — start writing.";
         list(&mut doc, "Paste an image", ListKind::Number);
         list(&mut doc, "Press Command-comma for Settings", ListKind::Number);
 
-        doc
+    // A daisy on its own line, right under the title — the image-embed feature
+    // shown in place. It sits on the blank paragraph after the title; the blob
+    // itself is written by `seed_welcome_entry`.
+    if let Some(blank) = text.find("\n\n") {
+        doc.set_image(
+            blank + 1,
+            Some(ImageBlock {
+                id: WELCOME_IMAGE_ID,
+                w: 0,
+                h: 0,
+                width: 88,
+            }),
+        );
+    }
+
+    doc
+}
+
+/// The muse notes seeded onto the welcome — one quiet card and one reaction —
+/// so the margin companion is there the moment it opens. Each anchors to a
+/// verbatim quote in the welcome text (see `welcome_document`).
+fn welcome_notes() -> Vec<daisynotes_agent::NoteRecord> {
+    use daisynotes_agent::{NoteKind, NoteRecord};
+    vec![
+        NoteRecord {
+            id: 1,
+            quote: "That friend is the muse.".to_string(),
+            kind: NoteKind::Encouragement,
+            body: "Hi — that's me. I stay out here in the margin, and only ever a word or two."
+                .to_string(),
+            emoji: None,
+        },
+        NoteRecord {
+            id: 2,
+            quote: "start writing".to_string(),
+            kind: NoteKind::Encouragement,
+            body: String::new(),
+            emoji: Some("❤️".to_string()),
+        },
+    ]
 }
 
 impl Workspace {
@@ -414,7 +470,7 @@ mod tests {
 
 #[cfg(test)]
 mod welcome_tests {
-    use super::welcome_document;
+    use super::{WELCOME_IMAGE_ID, welcome_document, welcome_notes};
     use daisynotes_core::{Document, EntryId, Ink, ListKind};
 
     fn raw(doc: &Document) -> String {
@@ -438,10 +494,21 @@ mod welcome_tests {
         assert_eq!(doc.spans().style_at(muse).ink, Some(Ink::Lavender));
         assert!(doc.spans().style_at(0).bold);
 
+        // The hero image sits on the blank paragraph after the title.
+        let img_at = text.find("\n\n").unwrap() + 1;
+        assert_eq!(doc.image_at(img_at).map(|b| b.id), Some(WELCOME_IMAGE_ID));
+
+        // Every seeded muse note anchors to a verbatim quote present in the
+        // welcome (plain_text is the raw rope, so these offsets are real).
+        for note in welcome_notes() {
+            assert!(text.contains(&note.quote), "note quote missing: {}", note.quote);
+        }
+
         // Everything survives a JSON round-trip (how it's actually persisted).
         let restored = Document::from_json(EntryId::nil(), &doc.to_json()).unwrap();
         assert_eq!(raw(&restored), text);
         assert_eq!(restored.para_attr(bullet).map(|a| a.kind), Some(ListKind::Bullet));
         assert_eq!(restored.spans().style_at(muse).ink, Some(Ink::Lavender));
+        assert_eq!(restored.image_at(img_at).map(|b| b.id), Some(WELCOME_IMAGE_ID));
     }
 }
