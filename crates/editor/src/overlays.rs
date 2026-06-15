@@ -3,10 +3,10 @@
 //! `deferred(anchored(...))` so they never affect layout — nothing shifts.
 
 use gpui::{
-    Action, Animation, AnimationExt as _, AnyElement, Context, Corner, Div, FontWeight,
+    Action, Animation, AnimationExt as _, AnyElement, Context, Corner, Div, FontWeight, Hsla,
     MouseButton, SharedString, Stateful, Window, anchored, deferred, div, point, prelude::*, px,
 };
-use daisynotes_core::{FontFamily, InlineStyle};
+use daisynotes_core::{FontFamily, Ink, InlineStyle};
 use daisynotes_theme::{ActiveTheme, Tokens, fonts, layout as metrics, motion};
 use daisynotes_ui::{IconName, card, icon, pill, soft_shadow};
 
@@ -46,6 +46,12 @@ pub(crate) fn render_pill(
     let italic = entire(|s| s.italic);
     let underline = entire(|s| s.underline);
     let strike = entire(|s| s.strike);
+    // The ink shared by the whole selection, or `None` when it's mixed.
+    let current_ink: Option<Option<Ink>> = {
+        let mut inks = tiles.iter().map(|(_, style)| style.ink);
+        inks.next()
+            .and_then(|first| inks.all(|ink| ink == first).then_some(first))
+    };
 
     let voice = editor.doc.voice();
     let menu = editor.pill_menu();
@@ -80,6 +86,8 @@ pub(crate) fn render_pill(
             &tokens,
             |el| el.line_through(),
         ))
+        .child(seperator(&tokens))
+        .child(ink_swatches(current_ink, &tokens))
         .child(seperator(&tokens))
         .child(family_dropdown(voice.family, menu == Some(PillMenu::Family), &tokens, cx))
         .child(seperator(&tokens))
@@ -139,6 +147,61 @@ fn glyph_toggle<A: Action + Clone>(
             window.dispatch_action(Box::new(action.clone()), cx);
         })
         .child(label)
+}
+
+/// The ink that swatch `i` applies, matching `tokens.ink_palette()` order:
+/// 0 = default ink, 1 = rose, 2 = lavender, 3 = moss.
+fn ink_for_swatch(i: usize) -> Option<Ink> {
+    match i {
+        1 => Some(Ink::Rose),
+        2 => Some(Ink::Lavender),
+        3 => Some(Ink::Moss),
+        _ => None,
+    }
+}
+
+/// The four ink swatches: default ink plus the three accent hues. Clicking one
+/// recolors the selection via `SetInk`; the active swatch wears an accent ring.
+fn ink_swatches(current: Option<Option<Ink>>, tokens: &Tokens) -> impl IntoElement {
+    let palette = tokens.ink_palette();
+    let mut row = div().flex().items_center().gap(px(3.0));
+    for (i, color) in palette.into_iter().enumerate() {
+        let active = current == Some(ink_for_swatch(i));
+        row = row.child(ink_swatch(i, color, active, tokens));
+    }
+    row
+}
+
+/// A single ink swatch: a filled dot, ringed in accent when it's the
+/// selection's current ink. The default-ink dot gets a hairline outline so it
+/// reads as a swatch even when its fill is near the surface color.
+fn ink_swatch(i: usize, color: Hsla, active: bool, tokens: &Tokens) -> impl IntoElement {
+    let ring = if active { tokens.accent } else { color.opacity(0.0) };
+    let dot = div()
+        .w(px(13.0))
+        .h(px(13.0))
+        .rounded_full()
+        .bg(color)
+        .when(i == 0, |el| el.border_1().border_color(tokens.hairline));
+    div()
+        .id(("pill-ink", i))
+        .flex()
+        .flex_none()
+        .items_center()
+        .justify_center()
+        .w(px(20.0))
+        .h(px(20.0))
+        .rounded_full()
+        .border_2()
+        .border_color(ring)
+        .cursor_pointer()
+        .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+            window.dispatch_action(
+                Box::new(daisynotes_commands::SetInk { ink: Some(i as u8) }),
+                cx,
+            );
+        })
+        .child(dot)
 }
 
 /// The human-readable name of a content font family.

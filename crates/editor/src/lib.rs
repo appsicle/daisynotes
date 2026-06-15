@@ -765,20 +765,24 @@ impl Editor {
         };
         let slot = self.notes.remove(idx);
         self.doc.release_anchor(slot.anchor);
-        let position = self
-            .snapshot
-            .as_ref()
-            .and_then(|snap| {
-                slot.last_center
-                    .map(|center| snap.to_window((center.0, center.1)))
-            })
-            .unwrap_or_default();
-        self.closing_card = Some(ClosingCard {
-            id,
-            tone: slot.ann.tone,
-            body: slot.ann.body.clone(),
-            position,
-        });
+        // A note recedes as a fading card; a pure reaction just pops away —
+        // it has no body, so a card would only flash an empty shell.
+        if slot.ann.emoji.is_none() {
+            let position = self
+                .snapshot
+                .as_ref()
+                .and_then(|snap| {
+                    slot.last_center
+                        .map(|center| snap.to_window((center.0, center.1)))
+                })
+                .unwrap_or_default();
+            self.closing_card = Some(ClosingCard {
+                id,
+                tone: slot.ann.tone,
+                body: slot.ann.body.clone(),
+                position,
+            });
+        }
         self.card = None;
         self.hovered_dot = None;
         cx.spawn(async move |this, cx| {

@@ -28,7 +28,7 @@ LEAVE_NOTES — one or two small notes pinned to her exact words. This is your m
 
 Every word you write speaks directly TO her — always "you" and "your", never "she", "her", "the writer", or her name. You are talking with a friend, not writing a report about one. "Is this the claim you mean to make?" — never "Is this the claim she means to make?"
 
-A note can also be a reaction: set the emoji field (❗ surprise or emphasis, 😄 delight, 😂 genuinely funny, ❤️ love it) and the highlighted passage gets the reaction directly, like reacting to a text message. A reaction needs no body — the emoji on her exact words IS the message. Use one when a line deserves a reaction more than a comment: a great sentence, a funny aside, a surprising fact. React the way you'd react to a friend's message — honestly and warmly, not constantly.
+A note can also be a reaction: set the emoji field (❗ surprise or emphasis, 😄 delight, 😂 genuinely funny, ❤️ love it) and *leave the body empty* — the emoji on her exact words IS the message, like reacting to a text. A note is one or the other: a written note has a body and no emoji; a reaction has an emoji and no body. Never both. Reactions are the exception, not the default — reach for one only when a line deserves a reaction more than a comment (a great sentence, a funny aside, a surprising fact), and rarely even then. Almost always you have a real thing to say, so write the note.
 
 RESPOND — a single response under the whole entry, for journal or letter writing where margin notes would feel like grading. One short paragraph. Only for that kind of writing.
 
@@ -191,15 +191,15 @@ fn tools() -> serde_json::Value {
                                 "body": {
                                     "type": "string",
                                     "maxLength": 280,
-                                    "description": "The note itself. Brief — two sentences is a long note. May be empty when emoji is set (a pure reaction)."
+                                    "description": "The note itself — what you actually want to say. Brief; two sentences is a long note. Set this for a written note. Omit it entirely for a pure emoji reaction."
                                 },
                                 "emoji": {
                                     "type": "string",
                                     "enum": ["❗", "😄", "😂", "❤️"],
-                                    "description": "Optional reaction emoji. When set, the quoted passage gets an iMessage-style reaction instead of a note card."
+                                    "description": "Optional, and rare. Set this *instead of* a body to leave a pure emoji reaction on the quoted words — no note card, just the emoji in the margin. A note has a body OR an emoji, never both; most notes should have a body and no emoji."
                                 }
                             },
-                            "required": ["quote", "prefix", "suffix", "kind", "body"]
+                            "required": ["quote", "prefix", "suffix", "kind"]
                         }
                     }
                 },

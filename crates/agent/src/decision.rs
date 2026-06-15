@@ -87,16 +87,21 @@ fn parse_note(item: &Value) -> Option<NoteDraft> {
         );
         return None;
     }
-    let emoji = item
+    let mut emoji = item
         .get("emoji")
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|e| crate::types::REACTION_EMOJI.contains(e))
         .map(str::to_string);
     let body = item.get("body").and_then(Value::as_str).unwrap_or("");
-    // A reaction can stand alone; a regular note needs a body.
-    if body.trim().is_empty() && emoji.is_none() {
-        tracing::warn!("note dropped: empty body");
+    // A note is one of two things: a written note (a body) or a pure
+    // reaction (an emoji, no body). If the model sent both, the body wins —
+    // words it bothered to write outrank a decorative emoji, and a reaction
+    // must stay bodiless so dismissing it never flashes an empty card.
+    if !body.trim().is_empty() {
+        emoji = None;
+    } else if emoji.is_none() {
+        tracing::warn!("note dropped: empty body and no reaction");
         return None;
     }
     if looks_degenerate(body) {
@@ -297,6 +302,49 @@ mod tests {
         };
         assert_eq!(drafts.len(), 1);
         assert_eq!(drafts[0].kind, NoteKind::Insight);
+    }
+
+    #[test]
+    fn bodiless_emoji_is_a_pure_reaction() {
+        let input = json!({
+            "register": "story",
+            "notes": [{
+                "quote": "the harbor",
+                "prefix": "",
+                "suffix": "",
+                "kind": "insight",
+                "emoji": "❤️"
+            }]
+        });
+        let AgentDecision::Notes(drafts) = parse_decision(&reply("leave_notes", input)) else {
+            panic!("expected notes");
+        };
+        assert_eq!(drafts.len(), 1);
+        assert_eq!(drafts[0].emoji.as_deref(), Some("❤️"));
+        assert!(drafts[0].body.is_empty());
+    }
+
+    #[test]
+    fn body_wins_over_a_stray_emoji() {
+        // A note that carries both is a written note; the emoji is dropped so
+        // it renders as a card, not a bodiless margin reaction.
+        let input = json!({
+            "register": "story",
+            "notes": [{
+                "quote": "the harbor",
+                "prefix": "",
+                "suffix": "",
+                "kind": "question",
+                "body": "why the harbor, of all places?",
+                "emoji": "❤️"
+            }]
+        });
+        let AgentDecision::Notes(drafts) = parse_decision(&reply("leave_notes", input)) else {
+            panic!("expected notes");
+        };
+        assert_eq!(drafts.len(), 1);
+        assert_eq!(drafts[0].body, "why the harbor, of all places?");
+        assert_eq!(drafts[0].emoji, None);
     }
 
     #[test]
