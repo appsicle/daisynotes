@@ -64,20 +64,30 @@
 .meadow{
   position:fixed; inset:0;
   z-index:0; pointer-events:none; user-select:none;
-  /* A full-height scene: a sky that stays blue all the way down — deep sky
-     blue at the navbar, holding its hue as it descends so there's no washed-out
-     cream band. The meadow (::after) rises from the bottom and dissolves up
-     into this blue over a long, soft fade. */
-  background:linear-gradient(to bottom, rgb(126 184 235 / 79%) 0%, rgb(154 201 240 / 54%) 30%, rgb(182 217 245) 60%, rgb(202 227 248) 100%)
+  /* A full-height daylight scene: a soft, desaturated sky blue at the navbar
+     that warms as it descends into the sun-washed haze of the meadow — like
+     real daylight, where the sky goes warm near the horizon, not a flat blue
+     wall. The bottom stop matches the photo's own warm sky (≈rgb 253 245 219)
+     so the meadow (::after) dissolves in with no seam. Stops are opaque (alpha
+     would let the warm paper bg bleed through unevenly); six closely-spaced
+     stops with a gentle deceleration keep the tall fade band-free. */
+  background:linear-gradient(to bottom,
+    rgb(160 197 224) 0%,        /* soft hazy daylight blue — top / navbar */
+    rgb(187 211 227) 20%,
+    rgb(212 225 226) 42%,       /* pales toward neutral */
+    rgb(231 230 215) 60%,       /* light turns warm — sun in the air */
+    rgb(246 240 219) 80%,       /* warm sun haze */
+    rgb(252 245 221) 100%);     /* meets the meadow's own warm sky */
 }
 .meadow::after{
   content:""; position:absolute; left:0; right:0; bottom:0;
   height:72vh;
   background:url("./meadow.jpg") center bottom / cover no-repeat;
-  /* the meadow's top dissolves up into the blue over a long, premium fade — a
-     gentle ease so there's no hard seam between sky and image */
-  -webkit-mask-image:linear-gradient(to top, #000 25%, transparent 92%);
-          mask-image:linear-gradient(to top, #000 25%, transparent 92%);
+  /* the meadow's top dissolves up into the blue over a long, premium fade — the
+     middle stop eases the dissolve so it's not a flat linear ramp and leaves no
+     seam between sky and image */
+  -webkit-mask-image:linear-gradient(to top, #000 20%, rgb(0 0 0 / .55) 58%, transparent 94%);
+          mask-image:linear-gradient(to top, #000 20%, rgb(0 0 0 / .55) 58%, transparent 94%);
 }
 
 /* Over the blue sky the warm-grey secondary ink (--color-ink-2/-3) goes muddy.
