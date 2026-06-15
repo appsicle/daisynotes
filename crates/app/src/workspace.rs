@@ -310,7 +310,20 @@ impl Workspace {
             Vec::new()
         });
         if entries.is_empty() {
-            self.create_entry_record();
+            // First ever launch: seed the welcome note once. A later empty
+            // store (everything deleted) just gets a blank entry.
+            let welcomed = self
+                .store
+                .setting("welcome_shown")
+                .ok()
+                .flatten()
+                .is_some();
+            if welcomed {
+                self.create_entry_record();
+            } else {
+                self.seed_welcome_entry();
+                self.persist_setting("welcome_shown", "true");
+            }
             entries = self.store.list_entries().unwrap_or_default();
         }
         self.sidebar.update(cx, |sidebar, cx| {

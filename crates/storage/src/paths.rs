@@ -4,12 +4,18 @@ use std::path::PathBuf;
 
 /// Daisy Notes's local data directory: `$HOME/Library/Application Support/DaisyNotes`.
 ///
+/// `DAISYNOTES_DATA_DIR` overrides it outright — useful for a throwaway profile
+/// (e.g. previewing the first-run welcome) without touching your real notes.
+///
 /// This function only computes the path; [`crate::Store::open`] (and therefore
 /// [`crate::Store::open_default`]) performs the `create_dir_all`. If `$HOME` is
 /// unset or empty — never the case in a normal macOS session — it falls back to
 /// a `DaisyNotes` directory under the system temp dir so the app always has somewhere
 /// writable.
 pub fn data_dir() -> PathBuf {
+    if let Some(dir) = std::env::var_os("DAISYNOTES_DATA_DIR").filter(|d| !d.is_empty()) {
+        return PathBuf::from(dir);
+    }
     match std::env::var_os("HOME") {
         Some(home) if !home.is_empty() => PathBuf::from(home)
             .join("Library")

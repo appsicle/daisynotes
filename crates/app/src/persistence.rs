@@ -212,6 +212,98 @@ impl Workspace {
         entry.id
     }
 
+    /// Seed the very first entry with a hand-written welcome that shows the app
+    /// off *in place*: real bold/italic/ink, two real lists, and invitations to
+    /// try things. No separate onboarding screen — the welcome is just a note
+    /// you can read, edit, or clear. Returns its id; used once, on first launch.
+    pub(crate) fn seed_welcome_entry(&self) -> String {
+        let ulid = Ulid::new();
+        let doc = welcome_document(ulid);
+        let plain = doc.plain_text();
+        let entry = SavedEntry {
+            id: ulid.to_string(),
+            title: first_line_title(&plain),
+            preview: doc.preview(),
+            doc_json: doc.to_json(),
+            plain,
+            touched_at: now_unix_ms(),
+        };
+        if let Err(err) = self.store.upsert_entry(&entry) {
+            tracing::error!(%err, "failed to seed welcome entry");
+        }
+        entry.id
+    }
+}
+
+/// Build the welcome document: the hand-written first note that shows the app
+/// off in place. Pure (no storage), so its formatting/list offsets are unit
+/// tested.
+pub(crate) fn welcome_document(id: daisynotes_core::EntryId) -> Document {
+    use daisynotes_core::{Ink, ListAttr, ListKind, StyleToggle};
+
+    let mut doc = Document::new(id);
+
+    // List items sit on their own lines with no markers in the text — the
+    // paragraph attribute draws the bullet/number. Styles and list marks
+    // are applied by searching this exact string, so the offsets stay put
+    // (neither toggle_style nor set_para_list changes the text).
+    let text = "Welcome to Daisy Notes\n\
+\n\
+You write, and a friend reads along — now and then leaving a small note out in \
+the margin. Never loud, never in the way. That friend is the muse.\n\
+\n\
+A few things worth knowing:\n\
+Your words stay on your machine, in a plain file on disk. Nothing leaves unless \
+you send it.\n\
+The muse can think on-device — a small model that runs right on your Mac. No \
+account, no cloud.\n\
+Prefer the cloud? Drop a Claude key into Settings and it'll think there instead.\n\
+Make the words yours: bold, italics, a touch of color, and whatever font feels \
+right.\n\
+\n\
+Try a few things, right here:\n\
+Type a dash and a space to begin a list. A number and a dot start a numbered one.\n\
+Paste an image — press Command-V — and it lands on the page, right where you are.\n\
+Press Command-comma for Settings: themes, the muse's mood, your key.\n\
+\n\
+When something new ships, Daisy Notes updates itself quietly — a small Update tag \
+appears up top when it's ready.\n\
+\n\
+This page is yours. Clear it, or keep it. Either way — start writing.";
+
+        doc.insert(0, text);
+
+        // Style the first occurrence of a phrase, so the welcome demonstrates
+        // each kind of formatting on the word that names it.
+        let style = |doc: &mut Document, phrase: &str, toggle: StyleToggle| {
+            if let Some(at) = text.find(phrase) {
+                doc.toggle_style(at..at + phrase.len(), toggle);
+            }
+        };
+        style(&mut doc, "Welcome to Daisy Notes", StyleToggle::Bold);
+        style(&mut doc, "the muse", StyleToggle::Ink(Some(Ink::Lavender)));
+        style(&mut doc, "bold", StyleToggle::Bold);
+        style(&mut doc, "italics", StyleToggle::Italic);
+        style(&mut doc, "a touch of color", StyleToggle::Ink(Some(Ink::Rose)));
+
+        // Turn the two clusters of lines into real lists.
+        let list = |doc: &mut Document, line: &str, kind: ListKind| {
+            if let Some(at) = text.find(line) {
+                doc.set_para_list(at, Some(ListAttr { kind, indent: 0 }));
+            }
+        };
+        list(&mut doc, "Your words stay on your machine", ListKind::Bullet);
+        list(&mut doc, "The muse can think on-device", ListKind::Bullet);
+        list(&mut doc, "Prefer the cloud?", ListKind::Bullet);
+        list(&mut doc, "Make the words yours:", ListKind::Bullet);
+        list(&mut doc, "Type a dash and a space", ListKind::Number);
+        list(&mut doc, "Paste an image", ListKind::Number);
+        list(&mut doc, "Press Command-comma for Settings", ListKind::Number);
+
+        doc
+}
+
+impl Workspace {
     /// Write a setting, logging (never surfacing) failures.
     pub(crate) fn persist_setting(&self, key: &str, value: &str) {
         if let Err(err) = self.store.set_setting(key, value) {
@@ -317,5 +409,39 @@ mod tests {
         assert_eq!(first_line_title("\n\n  \n"), "");
         assert_eq!(first_line_title("  Dear June  \nbody"), "Dear June");
         assert_eq!(first_line_title("\n\n  late title"), "late title");
+    }
+}
+
+#[cfg(test)]
+mod welcome_tests {
+    use super::welcome_document;
+    use daisynotes_core::{Document, EntryId, Ink, ListKind};
+
+    fn raw(doc: &Document) -> String {
+        doc.slice(0..doc.len())
+    }
+
+    #[test]
+    fn welcome_structure_and_round_trip() {
+        let doc = welcome_document(EntryId::nil());
+        let text = raw(&doc);
+        assert!(text.starts_with("Welcome to Daisy Notes"));
+
+        // A bullet line and a numbered line carry the right list attribute.
+        let bullet = text.find("Your words stay on your machine").unwrap();
+        assert_eq!(doc.para_attr(bullet).map(|a| a.kind), Some(ListKind::Bullet));
+        let number = text.find("Paste an image").unwrap();
+        assert_eq!(doc.para_attr(number).map(|a| a.kind), Some(ListKind::Number));
+
+        // "the muse" is inked in the muse hue; "Welcome…" is bold.
+        let muse = text.find("the muse").unwrap();
+        assert_eq!(doc.spans().style_at(muse).ink, Some(Ink::Lavender));
+        assert!(doc.spans().style_at(0).bold);
+
+        // Everything survives a JSON round-trip (how it's actually persisted).
+        let restored = Document::from_json(EntryId::nil(), &doc.to_json()).unwrap();
+        assert_eq!(raw(&restored), text);
+        assert_eq!(restored.para_attr(bullet).map(|a| a.kind), Some(ListKind::Bullet));
+        assert_eq!(restored.spans().style_at(muse).ink, Some(Ink::Lavender));
     }
 }
