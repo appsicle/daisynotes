@@ -78,3 +78,29 @@ workflow, import the cert into a temporary keychain and `store-credentials` (or
 pass `--apple-id`/`--team-id`/`--password`) before the Package step.
 `package.sh`'s existing `NOTARY_PROFILE` detection then fires automatically — no
 script change needed.
+
+## Auto-update (Sparkle)
+
+Shipped apps update themselves with **Sparkle 2** (vendored at
+`third_party/Sparkle/`; the framework is committed, the `bin/` tools are local
+only). `package.sh` embeds `Sparkle.framework`, signs it inside-out (the XPC
+helpers keep their entitlements), and writes the `SU*` keys into `Info.plist`
+(`SUFeedURL`, `SUPublicEDKey`, automatic checks + silent download).
+
+`release.sh` signs the notarized zip with the **EdDSA private key in the login
+keychain** (`third_party/Sparkle/bin/sign_update`), regenerates `appcast.xml`,
+and publishes both to a dedicated **`updates`** GitHub release (never marked
+`latest`, so it doesn't touch the landing-page download button). The app's
+`SUFeedURL` points at `releases/download/updates/appcast.xml`.
+
+One-time key setup (already done; the public key is baked into `package.sh`'s
+Info.plist as `SUPublicEDKey`):
+
+```sh
+third_party/Sparkle/bin/generate_keys   # prints SUPublicEDKey; stores the private key in the keychain
+```
+
+Local testing: `DAISYNOTES_UPDATE_BASELINE=0.1.1 cargo run` makes the dev build
+read the real feed as "newer" so the update pill/Settings light up without
+faking a release. The in-app pill/Settings check is a plain appcast fetch; the
+actual download → verify → install → relaunch is Sparkle's.

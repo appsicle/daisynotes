@@ -26,6 +26,8 @@ gpui::actions!(
         ToggleMuseMuted,
         /// Opens or closes the settings pane.
         OpenSettings,
+        /// Installs a downloaded app update and relaunches (the topbar pill).
+        InstallUpdate,
         /// Quits Muse.
         Quit,
     ]

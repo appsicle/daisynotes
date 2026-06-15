@@ -31,5 +31,11 @@ jiff.workspace = true
 ulid.workspace = true
 parking_lot.workspace = true
 smallvec.workspace = true
+# Blocking HTTP for the on-demand update check (run on a background thread).
+reqwest = { workspace = true, features = ["blocking"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Objective-C bridge to the vendored Sparkle.framework (auto-update).
+objc2 = "0.6"

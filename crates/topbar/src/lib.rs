@@ -8,10 +8,10 @@
 //! forward to the editor. It must not know about documents, entries,
 //! storage, or the agent.
 
-use gpui::{Context, EventEmitter, MouseButton, Window, div, img, prelude::*, px};
-use daisynotes_commands::ToggleSidebar;
+use gpui::{Context, EventEmitter, MouseButton, SharedString, Window, div, img, prelude::*, px};
+use daisynotes_commands::{InstallUpdate, ToggleSidebar};
 use daisynotes_core::FontFamily;
-use daisynotes_theme::{Appearance, layout};
+use daisynotes_theme::{ActiveTheme as _, Appearance, layout};
 use daisynotes_ui::{IconName, icon_button};
 
 /// The agent's state machine, seen from the chrome (PLAN §2). The orb that
@@ -51,6 +51,9 @@ pub struct Topbar {
     /// While the sidebar is open its header carries the toggle button,
     /// so the topbar hides its own.
     sidebar_open: bool,
+    /// Set to the new version when a downloaded update is ready; raises the
+    /// subtle "Update" pill at top-right.
+    update_available: Option<SharedString>,
 }
 
 impl EventEmitter<TopbarEvent> for Topbar {}
@@ -61,6 +64,16 @@ impl Topbar {
         Topbar {
             scrolled: false,
             sidebar_open: false,
+            update_available: None,
+        }
+    }
+
+    /// Raise (or clear) the "Update" pill. `Some(version)` shows it; the app
+    /// sets this once a background check finds a newer release.
+    pub fn set_update_available(&mut self, version: Option<SharedString>, cx: &mut Context<Self>) {
+        if self.update_available != version {
+            self.update_available = version;
+            cx.notify();
         }
     }
 
@@ -102,7 +115,30 @@ impl Topbar {
 }
 
 impl Render for Topbar {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let tokens = cx.theme().tokens;
+        // The subtle "Update" pill: a small accent dot + label, only present
+        // when a newer build is staged. Click installs and relaunches.
+        let update_pill = self.update_available.is_some().then(|| {
+            div()
+                .id("update-pill")
+                .flex()
+                .items_center()
+                .gap(px(5.))
+                .mr(px(10.))
+                .px(px(9.))
+                .py(px(3.))
+                .rounded_full()
+                .bg(tokens.accent.alpha(0.14))
+                .text_size(px(layout::UI_SMALL))
+                .text_color(tokens.accent)
+                .cursor_pointer()
+                .hover(move |style| style.bg(tokens.accent.alpha(0.22)))
+                .child(div().flex_none().size(px(5.)).rounded_full().bg(tokens.accent))
+                .child("Update")
+                .on_click(|_, window, cx| window.dispatch_action(Box::new(InstallUpdate), cx))
+        });
+
         div()
             .relative()
             .flex()
@@ -127,6 +163,7 @@ impl Render for Topbar {
             })
             // The center stays empty on purpose. Calm.
             .child(div().flex_1())
+            .children(update_pill)
             // The DaisyNotes mark, anchored top-right.
             .child(
                 img("icons/daisynotes-mark.png")

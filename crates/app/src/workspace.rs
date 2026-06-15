@@ -33,6 +33,12 @@ use crate::persistence::{Boot, date_label};
 
 /// How often the agent poll loop ticks.
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
+/// How often the app quietly checks the update feed (after a short launch
+/// delay). The pill is raised the moment a newer build appears.
+const UPDATE_POLL_INTERVAL: Duration = Duration::from_secs(30 * 60);
+/// A brief grace after launch before the first update check, so it never
+/// competes with opening the window.
+const UPDATE_FIRST_DELAY: Duration = Duration::from_secs(8);
 /// How long a toast stays before auto-dismissing.
 const TOAST_LIFE: Duration = Duration::from_secs(5);
 /// Frame pacing for the theme crossfade driver.
@@ -55,6 +61,23 @@ pub(crate) struct Toast {
     message: SharedString,
     /// The soft-deleted entry the Undo button restores.
     entry_id: String,
+}
+
+/// State of the Settings → About update check, driven by clicking
+/// "Check for Updates". The actual download/install is Sparkle's; this is just
+/// the immediate, in-pane feedback (we fetch the appcast and compare versions).
+#[derive(Clone, PartialEq)]
+pub(crate) enum UpdateCheck {
+    /// Resting — show the "Check for Updates" button.
+    Idle,
+    /// Fetch in flight.
+    Checking,
+    /// Newest published version equals (or is older than) this build.
+    UpToDate,
+    /// A newer version is available; carries its version string.
+    Available(String),
+    /// The feed couldn't be reached or parsed.
+    Error,
 }
 
 /// The root entity: every other view hangs off it, every workspace action
@@ -99,6 +122,9 @@ pub struct Workspace {
     /// Briefly true after a successful key save (the tiny check).
     pub(crate) api_saved: bool,
     pub(crate) api_saved_generation: u64,
+    /// State of the Settings → About "Check for Updates" affordance.
+    pub(crate) update_check: UpdateCheck,
+    pub(crate) update_check_generation: u64,
     /// Guards the settings pane's 250ms download poll, like the pane's
     /// other timers.
     pub(crate) download_poll_generation: u64,
@@ -163,6 +189,30 @@ impl Workspace {
             }
         });
 
+        // Quietly poll the update feed and raise the topbar pill when a newer
+        // build appears. The blocking fetch runs off the UI thread.
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(UPDATE_FIRST_DELAY).await;
+            loop {
+                let newer = cx
+                    .background_executor()
+                    .spawn(async { crate::updater::newer_version_available() })
+                    .await;
+                if this
+                    .update(cx, |this, cx| {
+                        if let Some(version) = newer {
+                            this.set_update_available(version, cx);
+                        }
+                    })
+                    .is_err()
+                {
+                    break;
+                }
+                cx.background_executor().timer(UPDATE_POLL_INTERVAL).await;
+            }
+        })
+        .detach();
+
         // Key resolution is a quick sync check (env, then Keychain); a key
         // saved in Settings re-resolves without a relaunch.
         let key_missing = daisynotes_api::resolve_api_key().is_none();
@@ -203,6 +253,8 @@ impl Workspace {
             api_field,
             api_saved: false,
             api_saved_generation: 0,
+            update_check: UpdateCheck::Idle,
+            update_check_generation: 0,
             download_poll_generation: 0,
             engines: HashMap::new(),
             notes: Vec::new(),
@@ -530,6 +582,26 @@ impl Workspace {
         tracing::info!("Daisy Notes {}", env!("CARGO_PKG_VERSION"));
     }
 
+    /// A background check found a newer build: reflect it in Settings → About
+    /// and raise the topbar pill.
+    pub(crate) fn set_update_available(&mut self, version: String, cx: &mut Context<Self>) {
+        self.update_check = UpdateCheck::Available(version.clone());
+        self.topbar
+            .update(cx, |topbar, cx| topbar.set_update_available(Some(version.into()), cx));
+        cx.notify();
+    }
+
+    /// The topbar "Update" pill (or Settings) asked to install: hand off to
+    /// Sparkle, which downloads/verifies/installs and relaunches.
+    fn act_install_update(
+        &mut self,
+        _: &cmd::InstallUpdate,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) {
+        crate::updater::check_for_updates();
+    }
+
     /// Workspace-level Escape: only fires when the editor isn't handling
     /// it; closes the settings pane, then the `Aa` popover.
     fn act_cancel(&mut self, _: &cmd::Cancel, window: &mut Window, cx: &mut Context<Self>) {
@@ -760,6 +832,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::act_toggle_muted))
             .on_action(cx.listener(Self::act_quit))
             .on_action(cx.listener(Self::act_about))
+            .on_action(cx.listener(Self::act_install_update))
             .on_action(cx.listener(Self::act_cancel))
             .on_action(cx.listener(Self::act_open_settings))
             .relative()

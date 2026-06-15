@@ -6,7 +6,8 @@ use gpui::{Menu, MenuItem, OsAction};
 
 use crate::actions::{
     About, Bold, Copy, Cut, DecreaseSize, IncreaseSize, Italic, MuseNow, NewEntry, Paste, Quit,
-    OpenSettings, Redo, SelectAll, Strikethrough, ToggleMuseMuted, ToggleSidebar, ToggleTheme, Underline, Undo,
+    OpenSettings, Redo, SelectAll, Strikethrough, ToggleMuseMuted, ToggleSidebar, ToggleTheme,
+    Underline, Undo,
 };
 
 /// The menu bar for Daisy Notes, ready for `gpui::App::set_menus`.

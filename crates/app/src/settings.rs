@@ -20,7 +20,7 @@ use daisynotes_theme::{
 use daisynotes_topbar::OrbState;
 use daisynotes_ui::{IconName, TextField, icon, icon_button, soft_shadow, text_button};
 
-use crate::workspace::Workspace;
+use crate::workspace::{UpdateCheck, Workspace};
 
 /// Settings card width.
 const CARD_W: f32 = 560.0;
@@ -274,7 +274,9 @@ impl Workspace {
                     .child(self.render_muse_section(cx))
                     .child(self.render_local_rows(cx))
                     .child(section_rule("API key", cx))
-                    .child(self.render_api_section(cx)),
+                    .child(self.render_api_section(cx))
+                    .child(section_rule("About", cx))
+                    .child(self.render_about_section(cx)),
             );
 
         Some(
@@ -747,6 +749,114 @@ impl Workspace {
             .into_any_element()
     }
 
+    /// The About row: the running version, with a manual update check beside
+    /// it that gives immediate in-pane feedback. Updates also download
+    /// silently in the background (Sparkle); this is just the on-demand check.
+    fn render_about_section(&self, cx: &mut Context<Self>) -> AnyElement {
+        let tokens = cx.theme().tokens;
+        let muted = |text: SharedString| {
+            div()
+                .text_size(px(layout::UI_SMALL))
+                .text_color(tokens.ink_tertiary)
+                .child(text)
+                .into_any_element()
+        };
+        let control: AnyElement = match &self.update_check {
+            UpdateCheck::Idle => text_button("check-updates", "Check for Updates")
+                .on_click(cx.listener(|this, _: &ClickEvent, _window, cx| {
+                    this.run_update_check(cx);
+                }))
+                .into_any_element(),
+            UpdateCheck::Checking => muted("Checking…".into()),
+            UpdateCheck::Error => muted("Couldn’t check".into()),
+            UpdateCheck::UpToDate => div()
+                .flex()
+                .items_center()
+                .gap(px(6.))
+                .child(icon(IconName::Check).size(px(14.)).color(tokens.accent))
+                .child(muted("Up to date".into()))
+                .into_any_element(),
+            UpdateCheck::Available(version) => div()
+                .flex()
+                .items_center()
+                .gap(px(8.))
+                .child(
+                    div()
+                        .text_size(px(layout::UI_SMALL))
+                        .text_color(tokens.accent)
+                        .child(SharedString::from(format!("Version {version} available"))),
+                )
+                .child(text_button("update-restart", "Restart to Update").on_click(
+                    cx.listener(|_this, _: &ClickEvent, _window, _cx| {
+                        crate::updater::check_for_updates();
+                    }),
+                ))
+                .into_any_element(),
+        };
+        setting_row(
+            "Daisy Notes",
+            concat!("Version ", env!("CARGO_PKG_VERSION")),
+            control,
+            cx,
+        )
+    }
+
+    /// Fetch the appcast and compare its newest version to this build, updating
+    /// `update_check` for immediate feedback. Also nudges Sparkle's real check
+    /// (which owns the download/install). Transient verdicts revert after a
+    /// few seconds; the generation guard drops a stale in-flight result.
+    fn run_update_check(&mut self, cx: &mut Context<Self>) {
+        if self.update_check == UpdateCheck::Checking {
+            return;
+        }
+        self.update_check = UpdateCheck::Checking;
+        self.update_check_generation = self.update_check_generation.wrapping_add(1);
+        let generation = self.update_check_generation;
+        cx.notify();
+        crate::updater::check_for_updates();
+
+        cx.spawn(async move |this, cx| {
+            // The blocking fetch runs on a background thread, off the UI.
+            let xml = cx
+                .background_executor()
+                .spawn(async { crate::updater::fetch_appcast() })
+                .await;
+            let verdict = match xml
+                .as_deref()
+                .and_then(crate::updater::latest_version)
+            {
+                Some(latest)
+                    if crate::updater::version_gt(&latest, &crate::updater::current_version()) =>
+                {
+                    UpdateCheck::Available(latest)
+                }
+                Some(_) => UpdateCheck::UpToDate,
+                None => UpdateCheck::Error,
+            };
+            let transient = matches!(verdict, UpdateCheck::UpToDate | UpdateCheck::Error);
+            this.update(cx, |this, cx| {
+                if this.update_check_generation == generation {
+                    this.update_check = verdict;
+                    cx.notify();
+                }
+            })
+            .ok();
+            if transient {
+                cx.background_executor()
+                    .timer(Duration::from_secs(5))
+                    .await;
+                this.update(cx, |this, cx| {
+                    if this.update_check_generation == generation {
+                        this.update_check = UpdateCheck::Idle;
+                        cx.notify();
+                    }
+                })
+                .ok();
+            }
+        })
+        .detach();
+    }
+
     /// One pill of a segmented control.
     fn segment(
         &self,
@@ -874,3 +984,4 @@ fn section_rule(label: &'static str, cx: &mut Context<Workspace>) -> gpui::Div {
         )
         .child(div().flex_1().h(px(1.)).bg(tokens.hairline))
 }
+

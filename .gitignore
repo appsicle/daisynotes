@@ -2,3 +2,6 @@
 /dist
 .DS_Store
 .gstack/
+
+# Sparkle release tooling (local only; framework is committed)
+third_party/Sparkle/bin/

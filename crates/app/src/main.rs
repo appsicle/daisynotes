@@ -8,6 +8,7 @@
 mod muse_flow;
 mod persistence;
 mod settings;
+mod updater;
 mod workspace;
 
 use std::sync::Arc;
@@ -84,6 +85,10 @@ fn main() {
                 return;
             }
             cx.activate(true);
+
+            // Start Sparkle's scheduled background update checks. No-op unless
+            // running from a packaged bundle whose Info.plist carries the feed.
+            updater::start();
         });
 }
 

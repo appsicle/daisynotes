@@ -41,9 +41,21 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>NSHighResolutionCapable</key>    <true/>
   <key>NSSupportsAutomaticGraphicsSwitching</key> <true/>
   <key>NSHumanReadableCopyright</key>   <string>© 2026 Daisy Notes</string>
+  <key>SUFeedURL</key>                  <string>https://github.com/appsicle/daisynotes/releases/download/updates/appcast.xml</string>
+  <key>SUPublicEDKey</key>              <string>6d+Ygcn8WvEF8n5+GzaKcQcZELzb+8Nham5lrXFlPN0=</string>
+  <key>SUEnableAutomaticChecks</key>    <true/>
+  <key>SUAutomaticallyUpdate</key>      <true/>
+  <key>SUScheduledCheckInterval</key>   <integer>3600</integer>
 </dict>
 </plist>
 PLIST
+
+# Embed Sparkle.framework (the auto-updater) before signing, so it's sealed
+# inside the bundle. Resolved at run time via the @executable_path/../Frameworks
+# rpath the binary was linked with.
+echo "── embedding Sparkle.framework ──"
+mkdir -p "$APP/Contents/Frameworks"
+cp -R third_party/Sparkle/Sparkle.framework "$APP/Contents/Frameworks/"
 
 echo "── rendering icon ──"
 ICON_TMP=$(mktemp -d)
@@ -56,13 +68,24 @@ rm -rf "$ICON_TMP"
 IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null \
   | grep -m1 -o '"Developer ID Application[^"]*"' | tr -d '"' || true)
 if [[ -n "$IDENTITY" ]]; then
-  echo "── signing ($IDENTITY) ──"
-  codesign --force --deep --options runtime --timestamp --sign "$IDENTITY" "$APP"
+  # Sign inside-out (Apple requires it for nested code): Sparkle's sandboxed
+  # XPC services first, keeping their own entitlements, then the helpers and
+  # framework, then the app. All with the hardened runtime so notarization
+  # accepts them. (`--deep` is unreliable for Sparkle's nested bundles.)
+  SPK="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
+  echo "── signing Sparkle ($IDENTITY) ──"
+  codesign -f -o runtime --timestamp --preserve-metadata=entitlements -s "$IDENTITY" "$SPK/XPCServices/Downloader.xpc"
+  codesign -f -o runtime --timestamp --preserve-metadata=entitlements -s "$IDENTITY" "$SPK/XPCServices/Installer.xpc"
+  codesign -f -o runtime --timestamp -s "$IDENTITY" "$SPK/Autoupdate"
+  codesign -f -o runtime --timestamp -s "$IDENTITY" "$SPK/Updater.app"
+  codesign -f -o runtime --timestamp -s "$IDENTITY" "$APP/Contents/Frameworks/Sparkle.framework"
+  echo "── signing app ($IDENTITY) ──"
+  codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP"
 else
   echo "── signing (ad-hoc; no Developer ID in keychain) ──"
   codesign --force --deep --sign - "$APP"
 fi
-codesign --verify --strict "$APP"
+codesign --verify --strict --deep "$APP"
 
 # Notarize + staple when credentials are stored. Prefer the daisynotes-notary
 # keychain profile; fall back to the legacy muse-notary profile from before the
