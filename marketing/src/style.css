@@ -56,6 +56,43 @@
   :focus-visible{ outline:2px solid var(--color-accent); outline-offset:3px; border-radius:6px; }
 }
 
+/* ── Ambient daisy meadow ─────────────────────────────────────────────
+   A soft "Your Name"-style backdrop pinned to the bottom: it fills the
+   lower screen, is capped so it never stretches forever, and fades at the
+   top into the paper background so the hero + demo stay clean and on top. */
+#app{ position:relative; z-index:1; }
+.meadow{
+  position:fixed; inset:0;
+  z-index:0; pointer-events:none; user-select:none;
+  /* A full-height scene: a sky that stays blue all the way down — deep sky
+     blue at the navbar, holding its hue as it descends so there's no washed-out
+     cream band. The meadow (::after) rises from the bottom and dissolves up
+     into this blue over a long, soft fade. */
+  background:linear-gradient(to bottom, rgb(126 184 235 / 79%) 0%, rgb(154 201 240 / 54%) 30%, rgb(182 217 245) 60%, rgb(202 227 248) 100%)
+}
+.meadow::after{
+  content:""; position:absolute; left:0; right:0; bottom:0;
+  height:72vh;
+  background:url("./meadow.jpg") center bottom / cover no-repeat;
+  /* the meadow's top dissolves up into the blue over a long, premium fade — a
+     gentle ease so there's no hard seam between sky and image */
+  -webkit-mask-image:linear-gradient(to top, #000 25%, transparent 92%);
+          mask-image:linear-gradient(to top, #000 25%, transparent 92%);
+}
+
+/* Over the blue sky the warm-grey secondary ink (--color-ink-2/-3) goes muddy.
+   For the text that actually sits on the gradient — nav link, hero subhead,
+   trust row — swap in a darker, cooler slate so it reads crisp. Scoped to the
+   hero + nav so the white demo window keeps its softer warm greys. */
+nav .text-ink-2,
+.hero .text-ink-2{ color:#3C4855; }
+nav .text-ink-2:hover{ color:var(--color-ink); }
+
+/* The nav "Download" link is accent-blue on the blue sky — illegible. Make it a
+   solid accent pill (white text) so it reads as the primary nav action. */
+nav .text-accent{ background:var(--color-accent); color:#fff; }
+nav .text-accent:hover{ background:var(--color-accent-strong); color:#fff; }
+
 /* ── First screen: hero centered above, demo pulled up to straddle the
       fold. The demo's center lands exactly on the 100svh line, regardless
       of hero height. ─────────────────────────────────────────────────── */
@@ -79,8 +116,9 @@
 }
 .titlebar{ display:flex; align-items:center; gap:8px; padding:16px 18px 12px; flex:0 0 auto; }
 .light{ width:11px; height:11px; border-radius:99px; background:#E2DED7; }
-.sheet{ flex:1 1 auto; display:grid; grid-template-columns:184px 1fr; min-height:0; }
-@media (max-width:620px){ .sheet{ grid-template-columns:1fr; } .rail{ display:none; } }
+/* Always a left rail + right paper, at every width — it scales down on
+   mobile rather than collapsing to one column (desktop keeps 184px). */
+.sheet{ flex:1 1 auto; display:grid; grid-template-columns:clamp(120px, 32%, 184px) 1fr; min-height:0; }
 
 .rail{ background:var(--color-panel); padding:12px 9px; font-size:13px; color:var(--color-ink-2);
        display:flex; flex-direction:column; }
