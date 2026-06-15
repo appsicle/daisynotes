@@ -15,18 +15,27 @@ pub(crate) type Tiles = Vec<(Range<usize>, InlineStyle)>;
 /// One invertible primitive edit. Each carries enough to undo itself exactly.
 #[derive(Debug, Clone)]
 pub(crate) enum EditOp {
-    /// `text` inserted at `at`, then `tiles` spliced over the inserted range.
+    /// `text` inserted at `at`, then `tiles` spliced over the inserted range and
+    /// any `paras`/`images` re-attached. `paras`/`images` are empty for ordinary
+    /// typing; they carry structure only when this insert is the inverse of a
+    /// delete that removed list paragraphs or image blocks.
     Insert {
         at: usize,
         text: String,
         tiles: Tiles,
+        paras: Vec<(usize, ListAttr)>,
+        images: Vec<(usize, ImageBlock)>,
     },
     /// `text` removed from `at..at + text.len()`; `tiles` captured the styles
-    /// (including plain gaps) of that range immediately before removal.
+    /// (including plain gaps) and `paras`/`images` the list/image structure of
+    /// that range immediately before removal, so the inverse insert restores
+    /// them byte-exactly.
     Delete {
         at: usize,
         text: String,
         tiles: Tiles,
+        paras: Vec<(usize, ListAttr)>,
+        images: Vec<(usize, ImageBlock)>,
     },
     /// Styles over `range` changed from `before` tiles to `after` tiles.
     Restyle {
@@ -53,15 +62,31 @@ pub(crate) enum EditOp {
 impl EditOp {
     pub(crate) fn inverted(&self) -> EditOp {
         match self {
-            EditOp::Insert { at, text, tiles } => EditOp::Delete {
+            EditOp::Insert {
+                at,
+                text,
+                tiles,
+                paras,
+                images,
+            } => EditOp::Delete {
                 at: *at,
                 text: text.clone(),
                 tiles: tiles.clone(),
+                paras: paras.clone(),
+                images: images.clone(),
             },
-            EditOp::Delete { at, text, tiles } => EditOp::Insert {
+            EditOp::Delete {
+                at,
+                text,
+                tiles,
+                paras,
+                images,
+            } => EditOp::Insert {
                 at: *at,
                 text: text.clone(),
                 tiles: tiles.clone(),
+                paras: paras.clone(),
+                images: images.clone(),
             },
             EditOp::Restyle {
                 range,

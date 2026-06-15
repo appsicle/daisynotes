@@ -9,6 +9,7 @@ workspace = true
 
 [dependencies]
 gpui.workspace = true
+daisynotes-clipboard.workspace = true
 daisynotes-core.workspace = true
 daisynotes-commands.workspace = true
 daisynotes-theme.workspace = true

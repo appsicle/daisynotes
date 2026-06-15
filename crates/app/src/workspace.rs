@@ -475,6 +475,11 @@ impl Workspace {
                     tracing::error!(%err, "failed to persist pasted image");
                 }
             }
+            EditorEvent::ImagesReferenced => {
+                // A styled paste re-attached image blocks by id; load their
+                // blobs from the store so the pasted images render.
+                self.load_image_sources(cx);
+            }
         }
     }
 

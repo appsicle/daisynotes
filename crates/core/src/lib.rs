@@ -7,6 +7,7 @@
 
 mod anchor;
 mod document;
+mod fragment;
 mod history;
 mod images;
 mod json;
@@ -17,6 +18,7 @@ mod style;
 
 pub use anchor::AnchorId;
 pub use document::{Document, UndoOutcome};
+pub use fragment::{DocFragment, FragmentImage, FragmentList, FragmentRun};
 pub use images::ImageSet;
 pub use json::DocError;
 pub use paras::ParaList;

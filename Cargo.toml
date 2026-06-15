@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 license = "MIT"
 
@@ -49,6 +49,7 @@ proptest = "1"
 llama-cpp-2 = "0.1.146"
 
 # Internal crates
+daisynotes-clipboard = { path = "crates/clipboard" }
 daisynotes-core = { path = "crates/core" }
 daisynotes-editor = { path = "crates/editor" }
 daisynotes-agent = { path = "crates/agent" }

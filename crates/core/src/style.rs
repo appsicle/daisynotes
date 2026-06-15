@@ -13,7 +13,7 @@ pub enum ListKind {
 }
 
 /// A paragraph's list attributes: its kind and nesting depth (0 = top level).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ListAttr {
     /// Bullet or number.
     pub kind: ListKind,
@@ -29,7 +29,7 @@ pub const MAX_LIST_INDENT: u8 = 8;
 /// are the natural pixel dimensions, used to lay out a stable height before
 /// the bytes are decoded. `width` is the user's chosen display width in px
 /// (0 means "fit the column"); height always follows the natural aspect.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImageBlock {
     pub id: u64,
     pub w: u32,

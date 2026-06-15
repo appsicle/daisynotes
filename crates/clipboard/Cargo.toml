@@ -1,0 +1,45 @@
+[package]
+name = "daisynotes-clipboard"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# This crate is the one place that talks to the platform pasteboard and AppKit's
+# attributed-string machinery, so it opts out of the workspace `unsafe_code`
+# deny (the objc2 bridge is unavoidably unsafe, kept audited and local).
+[lints.rust]
+unsafe_code = "allow"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+dbg_macro = "warn"
+todo = "warn"
+
+[dependencies]
+daisynotes-core.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = [
+    "NSString",
+    "NSAttributedString",
+    "NSData",
+    "NSDictionary",
+    "NSArray",
+    "NSValue",
+    "NSGeometry",
+    "NSRange",
+] }
+objc2-app-kit = { version = "0.3", features = [
+    "NSPasteboard",
+    "NSPasteboardItem",
+    "NSAttributedString",
+    "NSText",
+    "NSFont",
+    "NSFontManager",
+    "NSFontDescriptor",
+    "NSColor",
+    "NSColorSpace",
+    "NSParagraphStyle",
+    "NSTextList",
+] }

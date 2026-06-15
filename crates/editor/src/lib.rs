@@ -7,7 +7,6 @@
 //! presentation-neutral [`Annotation`]s and a coda string.
 
 mod anim;
-mod clipboard;
 mod element;
 mod layout;
 mod notes;
@@ -28,11 +27,10 @@ use gpui::{
 };
 use daisynotes_commands as cmd;
 use daisynotes_core::{
-    Document, ImageBlock, InlineStyle, ListAttr, ListKind, MAX_LIST_INDENT, StyleToggle, Voice,
+    DocFragment, Document, ImageBlock, ListAttr, ListKind, MAX_LIST_INDENT, StyleToggle, Voice,
 };
 
 use crate::anim::CaretSpring;
-use crate::clipboard::Envelope;
 use crate::layout::{IMAGE_VMARGIN, ParaRec, Snapshot};
 use crate::notes::NoteSlot;
 use crate::policy::{PendingStyle, Selection};
@@ -139,6 +137,10 @@ pub enum EditorEvent {
         /// The encoded image bytes.
         bytes: Vec<u8>,
     },
+    /// A styled paste re-referenced existing image blocks (by id). The app
+    /// reloads decode sources from the store so the pasted images render; their
+    /// blobs already persist, so no bytes travel on the clipboard.
+    ImagesReferenced,
 }
 
 /// How a drag extends the selection, set by the initiating click count.
@@ -1195,21 +1197,60 @@ impl Editor {
         if range.is_empty() {
             return false;
         }
-        let text = self.doc.slice(range.clone());
-        let tiles: Vec<(Range<usize>, InlineStyle)> = self
-            .doc
-            .spans()
-            .runs_in(range.clone())
-            .into_iter()
-            .map(|(tile, style)| (tile.start - range.start..tile.end - range.start, style))
-            .collect();
-        let envelope = Envelope::new(text.clone(), &tiles);
-        let item = match envelope.encode() {
-            Some(json) => ClipboardItem::new_string_with_metadata(text, json),
-            None => ClipboardItem::new_string(text),
-        };
-        cx.write_to_clipboard(item);
+        // The whole selection as a portable fragment (text + styles + lists +
+        // images). Adding a formatting feature needs no change here.
+        let fragment = self.doc.slice_fragment(range);
+        self.write_clipboard(&fragment, cx);
         true
+    }
+
+    /// Write the fragment to the system clipboard. On macOS this fans out to
+    /// several flavors (our lossless fragment, RTF for Notes/native apps, plain
+    /// text); elsewhere it falls back to gpui's clipboard with the fragment JSON
+    /// as metadata.
+    fn write_clipboard(&self, fragment: &DocFragment, cx: &mut Context<Self>) {
+        #[cfg(target_os = "macos")]
+        {
+            let _ = cx;
+            daisynotes_clipboard::write_fragment(fragment);
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let item = match fragment.to_json() {
+                Some(json) => ClipboardItem::new_string_with_metadata(fragment.text.clone(), json),
+                None => ClipboardItem::new_string(fragment.text.clone()),
+            };
+            cx.write_to_clipboard(item);
+        }
+    }
+
+    /// Read the system clipboard as a [`Paste`]. On macOS this reads the rich
+    /// flavors (fragment → RTF → plain); elsewhere it reconstructs a fragment or
+    /// plain text from gpui's clipboard item.
+    fn read_clipboard(&self, cx: &mut Context<Self>) -> daisynotes_clipboard::Paste {
+        #[cfg(target_os = "macos")]
+        {
+            let _ = cx;
+            daisynotes_clipboard::read()
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            use daisynotes_clipboard::Paste;
+            let Some(item) = cx.read_from_clipboard() else {
+                return Paste::Empty;
+            };
+            let Some(text) = item.text() else {
+                return Paste::Empty;
+            };
+            match item
+                .metadata()
+                .and_then(|meta| DocFragment::from_json(meta))
+                .filter(|fragment| fragment.text == text)
+            {
+                Some(fragment) => Paste::Fragment(fragment),
+                None => Paste::Plain(text),
+            }
+        }
     }
 
     fn on_cut(&mut self, _: &cmd::Cut, _: &mut Window, cx: &mut Context<Self>) {
@@ -1220,49 +1261,51 @@ impl Editor {
     }
 
     fn on_paste(&mut self, _: &cmd::Paste, _window: &mut Window, cx: &mut Context<Self>) {
-        let Some(item) = cx.read_from_clipboard() else {
-            return;
-        };
-        // An image on the clipboard embeds as a block; otherwise fall through
-        // to text (the system clipboard never carries both for one copy).
-        if let Some(image) = first_clipboard_image(&item) {
+        // A raw image on the clipboard (e.g. a screenshot) embeds as a block.
+        if let Some(item) = cx.read_from_clipboard()
+            && let Some(image) = first_clipboard_image(&item)
+        {
             self.paste_image(image, cx);
             return;
         }
-        let Some(text) = item.text() else {
-            return;
-        };
-        if text.is_empty() && self.sel.is_empty() {
-            return;
-        }
-        // The styled envelope only applies when its text matches what the
-        // clipboard actually carries (it may have been replaced by another
-        // app since we wrote it).
-        let envelope = item
-            .metadata()
-            .and_then(|meta| Envelope::decode(meta))
-            .filter(|envelope| envelope.text == text);
-        let at = self.sel.range().start;
-        self.doc.break_undo_group();
-        self.edit_replace(self.sel.range(), &text, cx);
-        if let Some(envelope) = envelope {
-            let continuation = self.doc.spans().style_at(at);
-            let mut changed = false;
-            for run in envelope.runs {
-                let range = at + run.start..at + run.end;
-                let staged = PendingStyle {
-                    at: range.start,
-                    style: run.style,
-                };
-                for toggle in staged.toggles_against(continuation) {
-                    self.doc.toggle_style(range.clone(), toggle);
-                    changed = true;
+
+        use daisynotes_clipboard::Paste;
+        let range = self.sel.range();
+        let (end, has_images) = match self.read_clipboard(cx) {
+            // Our own fragment, or rich text from another app via RTF: one
+            // splice applies text + styles + lists + images as a single undo
+            // group, feature-agnostically.
+            Paste::Fragment(fragment) | Paste::External(fragment) => {
+                if fragment.text.is_empty() && self.sel.is_empty() {
+                    return;
                 }
+                self.doc.break_undo_group();
+                let has_images = !fragment.images.is_empty();
+                (self.doc.splice_fragment(range, &fragment), has_images)
             }
-            if changed {
-                cx.emit(EditorEvent::Edited);
-                cx.notify();
+            Paste::Plain(text) => {
+                if text.is_empty() && self.sel.is_empty() {
+                    return;
+                }
+                self.doc.break_undo_group();
+                self.doc.replace(range.clone(), &text);
+                (range.start + text.len(), false)
             }
+            Paste::Empty => return,
+        };
+        // Wholesale change: rebuild the cache and park the caret past the paste.
+        self.rebuild_text_full();
+        self.marked = None;
+        self.pending = None;
+        self.set_selection(Selection::caret(self.doc.clamp(end)), cx);
+        self.last_edit = None;
+        self.autoscroll_to = Some(self.sel.head);
+        self.hide_pill(cx);
+        cx.emit(EditorEvent::Edited);
+        cx.notify();
+        // Re-reference any pasted images so the app loads their blobs to render.
+        if has_images {
+            cx.emit(EditorEvent::ImagesReferenced);
         }
     }
 

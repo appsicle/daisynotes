@@ -10,6 +10,7 @@ use ropey::Rope;
 
 use crate::EntryId;
 use crate::anchor::{AnchorId, AnchorMap};
+use crate::fragment::DocFragment;
 use crate::history::{EditOp, History, Tiles};
 use crate::images::ImageSet;
 use crate::json::{DocDto, DocError};
@@ -158,6 +159,8 @@ impl Document {
             at,
             text: text.to_string(),
             tiles: vec![(at..at + text.len(), style)],
+            paras: Vec::new(),
+            images: Vec::new(),
         };
         self.apply_edit(&op);
         self.history.record_insert(op, at, text.len());
@@ -198,6 +201,8 @@ impl Document {
                 at,
                 text: text.to_string(),
                 tiles: vec![(at..at + text.len(), style)],
+                paras: Vec::new(),
+                images: Vec::new(),
             };
             self.apply_edit(&op);
             ops.push(op);
@@ -257,6 +262,111 @@ impl Document {
         let char_idx = self.rope.byte_to_char(at);
         let prev = self.rope.char_to_byte(char_idx - 1);
         self.spans.style_at(prev)
+    }
+
+    // ── Fragments (copy / paste) ─────────────────────────────────────────────
+
+    /// Extract `range` (clamped) as a self-contained [`DocFragment`]: its text,
+    /// inline runs, list paragraphs, and image blocks, all rebased so the slice
+    /// starts at 0. This is feature-complete by construction — it copies
+    /// whatever the model holds, so copy never needs a per-feature case.
+    pub fn slice_fragment(&self, range: Range<usize>) -> DocFragment {
+        let range = self.clamp_range(range);
+        let text = self.rope.byte_slice(range.clone()).to_string();
+        let runs = self
+            .spans
+            .runs_in(range.clone())
+            .into_iter()
+            .map(|(tile, style)| (tile.start - range.start..tile.end - range.start, style))
+            .collect();
+        let lists = self
+            .paras
+            .iter()
+            .filter(|(at, _)| range.contains(at))
+            .map(|(at, attr)| (at - range.start, attr))
+            .collect();
+        let images = self
+            .images
+            .iter()
+            .filter(|(at, _)| range.contains(at))
+            .map(|(at, block)| (at - range.start, block))
+            .collect();
+        DocFragment::new(text, runs, lists, images)
+    }
+
+    /// Replace `range` (clamped) with `fragment`, applying its text, inline
+    /// styles, list paragraphs, and images as **one** undo group. Returns the
+    /// caret offset just past the inserted text. This is the single splice
+    /// every rich paste flows through; adding a formatting feature means
+    /// teaching the fragment and this method, never the call sites.
+    pub fn splice_fragment(&mut self, range: Range<usize>, fragment: &DocFragment) -> usize {
+        let range = self.clamp_range(range);
+        let mut ops: Vec<EditOp> = Vec::new();
+
+        if !range.is_empty() {
+            let op = self.delete_op(range.clone());
+            self.apply_edit(&op);
+            ops.push(op);
+        }
+
+        let at = range.start;
+        let end = at + fragment.text.len();
+        if !fragment.text.is_empty() {
+            // The inserted range carries exactly the fragment's non-plain runs;
+            // everything else is plain (splice drops surrounding-style bleed).
+            let tiles: Tiles = fragment
+                .runs
+                .iter()
+                .filter(|run| run.start < run.end)
+                .map(|run| (at + run.start..at + run.end, run.style))
+                .collect();
+            let op = EditOp::Insert {
+                at,
+                text: fragment.text.clone(),
+                tiles,
+                // Lists/images are applied as their own folded ops below.
+                paras: Vec::new(),
+                images: Vec::new(),
+            };
+            self.apply_edit(&op);
+            ops.push(op);
+        }
+
+        // List paragraphs and images attach to paragraph starts. Snap each
+        // recorded offset to the paragraph it lands in so a paste that merges
+        // into an existing line still binds to a real start.
+        for list in &fragment.lists {
+            let para = self.paragraph_range_at(self.clamp(at + list.at)).start;
+            let before = self.paras.get(para);
+            if before != Some(list.attr) {
+                let op = EditOp::SetList {
+                    at: para,
+                    before,
+                    after: Some(list.attr),
+                };
+                self.apply_edit(&op);
+                ops.push(op);
+            }
+        }
+        for image in &fragment.images {
+            let para = self.paragraph_range_at(self.clamp(at + image.at)).start;
+            let before = self.images.get(para);
+            if before != Some(image.block) {
+                let op = EditOp::SetImage {
+                    at: para,
+                    before,
+                    after: Some(image.block),
+                };
+                self.apply_edit(&op);
+                ops.push(op);
+            }
+        }
+
+        if !ops.is_empty() {
+            self.history.record_other(ops, range.start..range.start, end..end);
+            self.version += 1;
+        }
+        end
     }
 
     // ── Undo / redo ────────────────────────────────────────────────────────
@@ -568,19 +678,38 @@ impl Document {
 
     // ── Internals ──────────────────────────────────────────────────────────
 
-    /// Builds a delete op for `range`, capturing text and styles for undo.
+    /// Builds a delete op for `range`, capturing text, styles, and the list /
+    /// image structure within it so the inverse insert restores everything.
     fn delete_op(&self, range: Range<usize>) -> EditOp {
+        let paras = self
+            .paras
+            .iter()
+            .filter(|(at, _)| range.contains(at))
+            .collect();
+        let images = self
+            .images
+            .iter()
+            .filter(|(at, _)| range.contains(at))
+            .collect();
         EditOp::Delete {
             at: range.start,
             text: self.rope.byte_slice(range.clone()).to_string(),
             tiles: self.spans.runs_in(range),
+            paras,
+            images,
         }
     }
 
     /// The single choke point: applies one op to rope + spans + anchors.
     fn apply_edit(&mut self, op: &EditOp) {
         match op {
-            EditOp::Insert { at, text, tiles } => {
+            EditOp::Insert {
+                at,
+                text,
+                tiles,
+                paras,
+                images,
+            } => {
                 let char_at = self.rope.byte_to_char(*at);
                 self.rope.insert(char_at, text);
                 self.spans.transform_insert(*at, text.len());
@@ -591,6 +720,14 @@ impl Document {
                 self.paras.transform_insert(*at, text.len());
                 self.images.transform_insert(*at, text.len());
                 self.anchors.transform_insert(*at, text.len());
+                // Re-attach any list/image structure the inverse delete captured
+                // (empty for ordinary typing), so undo of a delete restores it.
+                for (off, attr) in paras {
+                    self.paras.set(*off, Some(*attr));
+                }
+                for (off, block) in images {
+                    self.images.set(*off, Some(*block));
+                }
             }
             EditOp::Delete { at, text, .. } => {
                 let range = *at..*at + text.len();
@@ -693,6 +830,119 @@ mod undo_group_tests {
         d.undo();
         assert_eq!(d.rope().to_string(), "- ");
         assert_eq!(d.para_attr(0), None);
+    }
+
+    #[test]
+    fn delete_all_then_undo_restores_list() {
+        // Format a list, delete everything, undo — the list attr must come back.
+        let mut d = doc();
+        d.insert(0, "milk");
+        d.set_para_list(0, Some(bullet()));
+        d.break_undo_group();
+        d.delete(0..d.len());
+        assert_eq!(d.rope().to_string(), "");
+        d.undo();
+        assert_eq!(d.rope().to_string(), "milk");
+        assert_eq!(
+            d.para_attr(0),
+            Some(bullet()),
+            "undo of a delete restores list formatting"
+        );
+    }
+
+    #[test]
+    fn delete_all_then_undo_restores_image() {
+        let mut d = doc();
+        d.insert(0, "\n");
+        d.set_image(
+            0,
+            Some(ImageBlock {
+                id: 9,
+                w: 0,
+                h: 0,
+                width: 0,
+            }),
+        );
+        d.break_undo_group();
+        d.delete(0..d.len());
+        assert!(d.image_at(0).is_none());
+        d.undo();
+        assert!(
+            d.image_at(0).is_some(),
+            "undo of a delete restores the image block"
+        );
+    }
+
+    #[test]
+    fn fragment_round_trips_and_splices_as_one_undo() {
+        use crate::style::StyleToggle;
+        // Source: "hello world", bold on "hello", a bullet on the paragraph.
+        let mut src = doc();
+        src.insert(0, "hello world");
+        src.toggle_style(0..5, StyleToggle::Bold);
+        src.set_para_list(0, Some(bullet()));
+
+        let frag = src.slice_fragment(0..11);
+        assert_eq!(frag.text, "hello world");
+        assert_eq!(frag.runs.len(), 1);
+        assert_eq!(frag.lists.len(), 1);
+        // JSON round-trips losslessly.
+        let json = frag.to_json().unwrap();
+        assert_eq!(DocFragment::from_json(&json).unwrap(), frag);
+
+        // Paste into a fresh doc as one undo step.
+        let mut dst = doc();
+        dst.break_undo_group();
+        let end = dst.splice_fragment(0..0, &frag);
+        assert_eq!(end, 11);
+        assert_eq!(dst.rope().to_string(), "hello world");
+        assert!(dst.spans().style_at(0).bold);
+        assert!(!dst.spans().style_at(6).bold);
+        assert_eq!(dst.para_attr(0), Some(bullet()));
+        dst.undo();
+        assert_eq!(dst.rope().to_string(), "");
+        assert_eq!(dst.para_attr(0), None);
+        assert!(!dst.can_undo(), "a fragment paste is one undo step");
+    }
+
+    #[test]
+    fn fragment_slice_rebases_offsets() {
+        use crate::style::StyleToggle;
+        let mut src = doc();
+        src.insert(0, "abcdefgh");
+        src.toggle_style(4..6, StyleToggle::Italic); // "ef"
+        let frag = src.slice_fragment(4..8); // "efgh"
+        assert_eq!(frag.text, "efgh");
+        // The italic run is rebased to the slice's start.
+        assert_eq!(frag.runs[0].start, 0);
+        assert_eq!(frag.runs[0].end, 2);
+    }
+
+    #[test]
+    fn fragment_paste_with_image_is_one_undo() {
+        // A fragment carrying text + an image splices and reverses in one step.
+        let frag = DocFragment::new(
+            "caption\n".to_string(),
+            vec![],
+            vec![],
+            vec![(
+                8,
+                ImageBlock {
+                    id: 5,
+                    w: 0,
+                    h: 0,
+                    width: 0,
+                },
+            )],
+        );
+        let mut d = doc();
+        d.break_undo_group();
+        d.splice_fragment(0..0, &frag);
+        assert!(d.image_at(8).is_some());
+        d.undo();
+        assert_eq!(d.rope().to_string(), "");
+        assert!(d.image_at(8).is_none());
+        assert!(!d.can_undo(), "text + image fragment is one undo step");
     }
 
     #[test]
