@@ -49,11 +49,11 @@ impl Chattiness {
                 budget_per_hour: 8,
             }),
             Self::Chatty => Some(Thresholds {
-                idle_ms: 1_200,
-                accum_chars: 6,
-                gap_ms: 18_000,
-                floor_chars: 40,
-                budget_per_hour: 14,
+                idle_ms: 800,
+                accum_chars: 4,
+                gap_ms: 9_000,
+                floor_chars: 24,
+                budget_per_hour: 24,
             }),
         }
     }
@@ -265,41 +265,41 @@ mod tests {
     #[test]
     fn chatty_uses_looser_thresholds() {
         let mut e = TriggerEngine::new(Chattiness::Chatty);
-        e.note_edit(1_000, 40, 6, false);
-        assert!(!e.poll(1_000 + 1_199));
-        assert!(e.poll(1_000 + 1_200));
+        e.note_edit(1_000, 40, 4, false);
+        assert!(!e.poll(1_000 + 799));
+        assert!(e.poll(1_000 + 800));
 
-        // 5 chars is not enough even for chatty.
+        // 3 chars is not enough even for chatty.
         let mut e = TriggerEngine::new(Chattiness::Chatty);
-        e.note_edit(1_000, 40, 5, false);
+        e.note_edit(1_000, 40, 3, false);
         assert!(!e.poll(10_000));
 
-        // 39 chars of document is below the chatty floor.
+        // 23 chars of document is below the chatty floor.
         let mut e = TriggerEngine::new(Chattiness::Chatty);
-        e.note_edit(1_000, 39, 10, false);
+        e.note_edit(1_000, 23, 10, false);
         assert!(!e.poll(10_000));
 
-        // Gap is 18s, not 30s.
+        // Gap is 9s.
         let mut e = TriggerEngine::new(Chattiness::Chatty);
         e.note_edit(1_000, 100, 10, false);
         e.mark_considered(4_000);
         e.note_edit(5_000, 110, 10, false);
-        assert!(!e.poll(4_000 + 17_999));
-        assert!(e.poll(4_000 + 18_000));
+        assert!(!e.poll(4_000 + 8_999));
+        assert!(e.poll(4_000 + 9_000));
     }
 
     #[test]
-    fn chatty_budget_is_fourteen_per_hour() {
+    fn chatty_budget_is_twenty_four_per_hour() {
         let mut e = TriggerEngine::new(Chattiness::Chatty);
-        for i in 0..14u64 {
-            let t = i * 20_000;
+        for i in 0..24u64 {
+            let t = i * 15_000;
             e.note_edit(t, 500, 100, true);
-            assert!(e.poll(t + 1_500), "consideration {i} should fire");
-            e.mark_considered(t + 1_500);
+            assert!(e.poll(t + 1_000), "consideration {i} should fire");
+            e.mark_considered(t + 1_000);
         }
         e.note_edit(400_000, 600, 100, true);
         assert!(!e.poll(500_000));
-        assert!(e.poll(1_500 + HOUR_MS));
+        assert!(e.poll(1_000 + HOUR_MS));
     }
 
     #[test]

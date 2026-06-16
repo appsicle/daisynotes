@@ -9,7 +9,7 @@ use serde_json::Value;
 use crate::types::{AgentDecision, NoteDraft, NoteKind, REGISTERS};
 
 /// Maximum notes per consideration; extras are dropped.
-const MAX_NOTES: usize = 2;
+const MAX_NOTES: usize = 3;
 /// Maximum quote length in chars; longer quotes are rejected.
 const MAX_QUOTE_CHARS: usize = 300;
 
@@ -233,21 +233,22 @@ mod tests {
     }
 
     #[test]
-    fn notes_capped_at_two() {
+    fn notes_capped_at_three() {
         let input = json!({
             "register": "essay",
             "notes": [
                 note("one", "insight", "a"),
                 note("two", "insight", "b"),
                 note("three", "insight", "c"),
+                note("four", "insight", "d"),
             ]
         });
         let AgentDecision::Notes(drafts) = parse_decision(&reply("leave_notes", input)) else {
             panic!("expected notes");
         };
-        assert_eq!(drafts.len(), 2);
+        assert_eq!(drafts.len(), 3);
         assert_eq!(drafts[0].quote, "one");
-        assert_eq!(drafts[1].quote, "two");
+        assert_eq!(drafts[2].quote, "three");
     }
 
     #[test]

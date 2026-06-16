@@ -14,7 +14,7 @@ root ::= pass | leavenotes | respond
 
 pass ::= "{\"tool\":\"pass\",\"reason\":" reason "}"
 
-leavenotes ::= "{\"tool\":\"leave_notes\",\"register\":" register ",\"notes\":[" note ("," note)? "]}"
+leavenotes ::= "{\"tool\":\"leave_notes\",\"register\":" register ",\"notes\":[" note ("," note){0,2} "]}"
 
 note ::= "{\"quote\":" quote ",\"prefix\":" context ",\"suffix\":" context ",\"kind\":" kind ",\"body\":" body ("," "\"emoji\":" emoji)? "}"
 
@@ -96,9 +96,9 @@ mod tests {
     }
 
     #[test]
-    fn notes_are_capped_at_two() {
-        // One mandatory note plus at most one optional repeat.
-        assert!(GRAMMAR.contains(r#"note ("," note)?"#));
+    fn notes_are_capped_at_three() {
+        // One mandatory note plus up to two optional repeats.
+        assert!(GRAMMAR.contains(r#"note ("," note){0,2}"#));
     }
 
     #[test]

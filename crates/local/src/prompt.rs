@@ -17,15 +17,17 @@ pub const MAX_PROMPT_CHARS: usize = 24_000;
 const ELLIPSIS: &str = "\n[…]\n";
 
 /// The instruction that pins the model to exactly one tool-call JSON object.
-const OUTPUT_INSTRUCTION: &str = r#"Decide now. Answer with EXACTLY ONE JSON object and nothing else — no prose, no markdown fences. It must be one of these three shapes:
+const OUTPUT_INSTRUCTION: &str = r#"Decide now. Answer with EXACTLY ONE JSON object and nothing else — no prose, no markdown fences. Almost always you have a real thing to say, so leave_notes is your default. It must be one of these three shapes:
 
-{"tool":"pass","reason":"<one short line on why silence is right>"}
-
-{"tool":"leave_notes","register":"<essay|journal|story|math|letter|notes>","notes":[{"quote":"<exact characters copied from the entry, a short phrase — never a whole paragraph>","prefix":"<up to 20 chars before the quote, or empty>","suffix":"<up to 20 chars after the quote, or empty>","kind":"<insight|question|encouragement|correction|reference>","body":"<the note: one or two short sentences>","emoji":"<OPTIONAL: ❗ or 😄 or 😂 or ❤️ — include to react to the quoted text like reacting to a message; with an emoji the body may be empty>"}]}
+{"tool":"leave_notes","register":"<essay|journal|story|math|letter|notes>","notes":[{"quote":"<exact characters copied from the entry, a short phrase — never a whole paragraph>","prefix":"<up to 20 chars before the quote, or empty>","suffix":"<up to 20 chars after the quote, or empty>","kind":"<insight|question|encouragement|correction|reference>","body":"<the note: one or two short sentences>"}]}
 
 {"tool":"respond","register":"<essay|journal|story|math|letter|notes>","body":"<one warm short paragraph>"}
 
-Rules: at most two notes; quotes must appear verbatim in the entry and stay short; notes are brief — two sentences is a long note. Every body speaks directly to the writer as "you" — never "she", "her", or "the writer". A reaction emoji on a line you loved is often better than a comment."#;
+{"tool":"pass","reason":"<one short line on why silence is right>"}
+
+Choose leave_notes whenever there's something worth saying — a reaction to a line, a fact she'd want, a question, a connection, gentle pushback. Use respond only for journal- or letter-like writing. Use pass only when the page is nearly empty, she's mid-keystroke, or you'd just repeat a note already there.
+
+Rules: one to three notes; quotes must appear verbatim in the entry and stay short; notes are brief — two sentences is a long note. Every body speaks directly to the writer as "you" — never "she", "her", or "the writer". A note normally has a body. Rarely, instead of a body, you may react to a loved line by adding "emoji":"<❗|😄|😂|❤️>" and leaving the body out — a pure reaction, used sparingly."#;
 
 /// Build the full Gemma-format prompt string for one request.
 ///

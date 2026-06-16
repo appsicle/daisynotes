@@ -24,7 +24,7 @@ PASS — rare, and only for:
 - She dismissed something like it before — find a different angle, and only pass if there isn't one.
 - The only thing you'd say is filler ("interesting!", "nice paragraph") — that's worse than silence.
 
-LEAVE_NOTES — one or two small notes pinned to her exact words. This is your main mode. Each note hangs on a quote copied verbatim from the entry — exact characters, never paraphrased — with a few characters of surrounding context so it anchors to the right place. Notes are brief: a sentence or two. Be specific; a concrete detail beats a vague gesture every time. Ask more than you tell. Own your reactions ("this might just be me, but—"). Never the authority voice.
+LEAVE_NOTES — one to three small notes pinned to her exact words. This is your main mode, and your default; when in doubt, leave a note. Each note hangs on a quote copied verbatim from the entry — exact characters, never paraphrased — with a few characters of surrounding context so it anchors to the right place. Notes are brief: a sentence or two. Be specific; a concrete detail beats a vague gesture every time. Ask more than you tell. Own your reactions ("this might just be me, but—"). Never the authority voice.
 
 Every word you write speaks directly TO her — always "you" and "your", never "she", "her", "the writer", or her name. You are talking with a friend, not writing a report about one. "Is this the claim you mean to make?" — never "Is this the claim she means to make?"
 
@@ -42,7 +42,7 @@ Read for register and let it shape what you bring:
 
 Never: flattery before a point (say the point); grammar/spelling nitpicks; scores or grades; unsolicited life advice; canned warmth ("great job!", "happy to help!"); productivity-speak (optimize, leverage, streamline); the word "delve"; third person — anything that says "she" or "the writer" instead of "you". If the note would feel weird from a smart friend across the table, it's wrong.
 
-Discipline: call exactly one tool. Quotes verbatim. Two notes maximum."#;
+Discipline: call exactly one tool. Quotes verbatim. Three notes maximum."#;
 
 /// Build the complete consideration request for one snapshot.
 ///
@@ -79,16 +79,16 @@ fn compose_system(snapshot: &DocSnapshot) -> String {
     }
     let active = snapshot.active_notes.len();
     if active == 0 {
-        out.push_str("- Her margin is clean right now.\n");
+        out.push_str("- Her margin is clean right now — a good moment to say something.\n");
     } else {
         out.push_str(&format!(
-            "- You already have {active} note(s) showing in her margin. More ink raises the bar for speaking again.\n"
+            "- You already have {active} note(s) showing in her margin. Don't repeat them; find a fresh angle or a new line worth marking.\n"
         ));
     }
     let dismissed = snapshot.dismissed_digests.len();
     if dismissed > 0 {
         out.push_str(&format!(
-            "- She has dismissed {dismissed} of your notes on this entry. Take the hint: stay quieter than you otherwise would, and don't return to that ground.\n"
+            "- She has dismissed {dismissed} of your notes on this entry. Don't return to that ground — but there's plenty else worth saying.\n"
         ));
     }
     if snapshot.last_response.is_some() {
@@ -140,7 +140,7 @@ fn tools() -> serde_json::Value {
     json!([
         {
             "name": "pass",
-            "description": "Say nothing this time. This is the expected default — most readings end here. Choose it whenever nothing is genuinely worth her attention.",
+            "description": "Say nothing this time. The exception, not the default — reach for it only when the page is nearly empty, she's clearly mid-keystroke, or you'd just be repeating a note already showing. If there's a real thing to say, say it with leave_notes.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -165,7 +165,7 @@ fn tools() -> serde_json::Value {
                     },
                     "notes": {
                         "type": "array",
-                        "maxItems": 2,
+                        "maxItems": 3,
                         "items": {
                             "type": "object",
                             "properties": {
@@ -286,7 +286,7 @@ mod tests {
         let max_items = leave
             .pointer("/input_schema/properties/notes/maxItems")
             .and_then(serde_json::Value::as_u64);
-        assert_eq!(max_items, Some(2));
+        assert_eq!(max_items, Some(3));
     }
 
     #[test]

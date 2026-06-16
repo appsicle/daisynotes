@@ -59,8 +59,9 @@ impl Boot {
         };
         let chattiness = match setting("chattiness").as_deref() {
             Some("quiet") => Chattiness::Quiet,
-            Some("chatty") => Chattiness::Chatty,
-            _ => Chattiness::Occasional,
+            Some("occasional") => Chattiness::Occasional,
+            // New writers start chatty; the muse earns its keep by speaking.
+            _ => Chattiness::Chatty,
         };
         let muted = matches!(setting("muse_muted").as_deref(), Some("true"));
         let pair = pair_from_settings(
@@ -399,7 +400,7 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let boot = Boot::load(&store);
         assert_eq!(boot.appearance, Appearance::Paper);
-        assert_eq!(boot.chattiness, Chattiness::Occasional);
+        assert_eq!(boot.chattiness, Chattiness::Chatty);
         assert!(!boot.muted);
         assert_eq!(boot.pair, ThemePair::default());
     }
