@@ -16,15 +16,13 @@ pass ::= "{\"tool\":\"pass\",\"reason\":" reason "}"
 
 leavenotes ::= "{\"tool\":\"leave_notes\",\"register\":" register ",\"notes\":[" note ("," note){0,2} "]}"
 
-note ::= "{\"quote\":" quote ",\"prefix\":" context ",\"suffix\":" context ",\"kind\":" kind ",\"body\":" body ("," "\"emoji\":" emoji)? "}"
-
-emoji ::= "\"❗\"" | "\"😄\"" | "\"😂\"" | "\"❤️\""
+note ::= "{\"quote\":" quote ",\"prefix\":" context ",\"suffix\":" context ",\"kind\":" kind ",\"body\":" body "}"
 
 respond ::= "{\"tool\":\"respond\",\"register\":" register ",\"body\":" longbody "}"
 
 register ::= "\"essay\"" | "\"journal\"" | "\"story\"" | "\"math\"" | "\"letter\"" | "\"notes\""
 
-kind ::= "\"insight\"" | "\"question\"" | "\"encouragement\"" | "\"correction\"" | "\"reference\""
+kind ::= "\"insight\"" | "\"question\"" | "\"correction\"" | "\"reference\""
 
 reason ::= "\"" char{1,160} "\""
 
@@ -32,7 +30,7 @@ quote ::= "\"" char{1,300} "\""
 
 context ::= "\"" char{0,24} "\""
 
-body ::= "\"" char{0,240} "\""
+body ::= "\"" char{1,240} "\""
 
 longbody ::= "\"" char{1,640} "\""
 
@@ -59,7 +57,6 @@ mod tests {
             "note",
             "register",
             "kind",
-            "emoji",
             "reason",
             "quote",
             "context",
@@ -87,7 +84,6 @@ mod tests {
             r#"\"notes\""#,
             r#"\"insight\""#,
             r#"\"question\""#,
-            r#"\"encouragement\""#,
             r#"\"correction\""#,
             r#"\"reference\""#,
         ] {

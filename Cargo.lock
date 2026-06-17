@@ -1233,7 +1233,7 @@ checksum = "e2931af7e13dc045d8e9d26afccc6fa115d64e115c9c84b1166288b46f6782c2"
 
 [[package]]
 name = "daisynotes"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "anyhow",
  "daisynotes-agent",
@@ -1262,7 +1262,7 @@ dependencies = [
 
 [[package]]
 name = "daisynotes-agent"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "daisynotes-api",
  "daisynotes-core",
@@ -1274,7 +1274,7 @@ dependencies = [
 
 [[package]]
 name = "daisynotes-api"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "futures",
  "parking_lot",
@@ -1288,7 +1288,7 @@ dependencies = [
 
 [[package]]
 name = "daisynotes-clipboard"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "daisynotes-core",
  "objc2",
@@ -1298,7 +1298,7 @@ dependencies = [
 
 [[package]]
 name = "daisynotes-commands"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "gpui",
  "serde",
@@ -1306,7 +1306,7 @@ dependencies = [
 
 [[package]]
 name = "daisynotes-core"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "jiff",
  "proptest",
@@ -1321,7 +1321,7 @@ dependencies = [
 
 [[package]]
 name = "daisynotes-editor"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "daisynotes-clipboard",
  "daisynotes-commands",
@@ -1338,7 +1338,7 @@ dependencies = [
 
 [[package]]
 name = "daisynotes-entries"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "daisynotes-commands",
  "daisynotes-core",
@@ -1351,7 +1351,7 @@ dependencies = [
 
 [[package]]
 name = "daisynotes-local"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "daisynotes-api",
  "futures",
@@ -1367,7 +1367,7 @@ dependencies = [
 
 [[package]]
 name = "daisynotes-storage"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "anyhow",
  "jiff",
@@ -1381,7 +1381,7 @@ dependencies = [
 
 [[package]]
 name = "daisynotes-theme"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "gpui",
  "serde",
@@ -1389,7 +1389,7 @@ dependencies = [
 
 [[package]]
 name = "daisynotes-topbar"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "daisynotes-commands",
  "daisynotes-core",
@@ -1400,7 +1400,7 @@ dependencies = [
 
 [[package]]
 name = "daisynotes-ui"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "daisynotes-theme",
  "gpui",

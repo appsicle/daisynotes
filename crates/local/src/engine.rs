@@ -26,8 +26,10 @@ const N_CTX: u32 = 8192;
 /// comfortable headroom while still bounding a pathological decode.
 const MAX_NEW_TOKENS: usize = 768;
 
-/// Sampling temperature under the grammar.
-const TEMPERATURE: f32 = 0.7;
+/// Sampling temperature under the grammar. Kept low: the muse is
+/// informational, and terse factual output wants little randomness (the
+/// repeat penalty in the sampler chain guards against small-model looping).
+const TEMPERATURE: f32 = 0.5;
 
 /// Nucleus sampling cutoff.
 const TOP_P: f32 = 0.95;
